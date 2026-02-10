@@ -1,5 +1,6 @@
 {
   "expo": {
+    "scheme": "honoursapp",
     "name": "Honours_project",
     "slug": "Honours_project",
     "version": "1.0.0",
@@ -16,15 +17,42 @@
       "supportsTablet": true
     },
     "android": {
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCDm922r3RRdVjvM_6HEpQ3vU2tEY1ptOw"
+        }
+      },
+      "package": "com.mharley.Honours_project"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-maps",
+        {
+          "requestLocationPermission": true,
+          "locationPermission": "Allow $(PRODUCT_NAME) to use your location"
+        }
+        
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "159da6de-0529-48d8-9a9e-d71c71798be7"
+      }
     }
   }
 }
