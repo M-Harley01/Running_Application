@@ -20,7 +20,7 @@ export default function Map() {
   >([]);
 
   const cameraPosition = {
-    coordinates: { latitude: 56.477703, longitude: -2.830603 },
+    coordinates: { latitude: 56.4697445, longitude: -2.8583756 },
     zoom: 15,
   };
 
@@ -65,7 +65,21 @@ export default function Map() {
         <GoogleMaps.View
           style={styles.map}
           cameraPosition={cameraPosition}
-          polylines={myPolyline}
+          polylines={[
+  {
+    coordinates: [
+      { latitude: 56.4697402, longitude: -2.858486 },
+      { latitude: 56.4697642, longitude: -2.8583836 },
+      { latitude: 56.4697697, longitude: -2.8584458 },
+      { latitude: 56.4697512, longitude: -2.8584444 },
+      { latitude: 56.4696157, longitude: -2.8583664 },
+      { latitude: 56.4696826, longitude: -2.8583107 },
+      { latitude: 56.4697898, longitude: -2.8574722 },
+      { latitude: 56.4697785, longitude: -2.856957 },
+      { latitude: 56.4700066, longitude: -2.8566019 }
+    ]
+  }
+]}
           onMapClick={(e) => {
             const lat = e.coordinates.latitude;
             const lon = e.coordinates.longitude;

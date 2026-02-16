@@ -1,10 +1,11 @@
-import { StyleSheet, Text, View } from 'react-native'
-import React, {useEffect} from 'react'
-import { Button } from 'react-native'
+import { StyleSheet, Text, View, Button } from 'react-native'
+import React from 'react'
 import { Link, useRouter } from 'expo-router'
 import { useLocation } from '../Hooks/location'
-
-
+import { 
+  startBackgroundTracking, 
+  stopBackgroundTracking 
+} from '../Hooks/backgroundLocation'
 
 export default function Home() {
   
@@ -19,14 +20,33 @@ export default function Home() {
     <View style={styles.container}>
       <Text style={styles.title}> Index page</Text>
 
-      {errorMsg ? <Text>{errorMsg}</Text>:null}      
+      {errorMsg ? <Text>{errorMsg}</Text> : null}      
 
-      <Button title="Plan a route" onPress={() => router.push({pathname:"/map", params:{lat:latitude, lon: longitude}})}/>
+      <Button 
+        title="Plan a route" 
+        onPress={() => router.push({
+          pathname: "/map", 
+          params: { lat: latitude, lon: longitude }
+        })}
+      />
+
+      <View style={{ height: 20 }} />
+
+      <Button
+        title="Start Run (Background Tracking)"
+        onPress={() => startBackgroundTracking()}
+      />
+
+      <View style={{ height: 10 }} />
+
+      <Button
+        title="Stop Run"
+        onPress={() => stopBackgroundTracking()}
+      />
         
     </View>
   )
-} 
-
+}
 
 const styles = StyleSheet.create({
   container:{
@@ -41,7 +61,6 @@ const styles = StyleSheet.create({
   card:{
     backgroundColor: '#eee',
     padding: 20,
-    borderRadius: 5,
-    boxShadow: '4px 4px rgba(0,0,0,0.1)'
+    borderRadius: 5
   }
 })
