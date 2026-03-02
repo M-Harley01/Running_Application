@@ -29,7 +29,7 @@
       "predictiveBackGestureEnabled": false,
       "config": {
         "googleMaps": {
-          "apiKey": "AIzaSyCDm922r3RRdVjvM_6HEpQ3vU2tEY1ptOw"
+          "apiKey": ""
         }
       },
       "package": "com.mharley.Honours_project"
