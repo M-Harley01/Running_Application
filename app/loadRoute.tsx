@@ -1,11 +1,17 @@
 import React, {useState, useEffect, useRef} from 'react';
-import { View, StyleSheet, Text, Button, Pressable } from 'react-native'
+import { View, StyleSheet, Text, Button, Pressable, FlatList } from 'react-native'
 import  supabase  from '../config/supabaseClient'
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { routeToCartesian } from '../Hooks/cartesian'
 
 function loadRoute(){
+  
+  const router = useRouter()
 
-  const { id } = useLocalSearchParams();
+  const initialCartesian: { y: number, x: number }[] = [];
+
+  const [routes, setRoutes] = useState<any[]>([]);
+  const { id, loginLat, loginLon } = useLocalSearchParams();
 
   const fetchRoutes = async () => {
     const userId = id;
@@ -29,25 +35,60 @@ function loadRoute(){
         return;
     }
 
-    for(var i = 0; i < data.length; i++){
-
-        const returnedData = data[i].name;
-        console.log("heres what the data looks like big dog: ", returnedData);
-
+     if(data){
+      setRoutes(data)
+      if (!data.length) return;
     }
-  }
+  };
+
+  useEffect(()=>{
+    fetchRoutes();
+  },[id]);
     
   return(
+    <View style={styles.container}>
     <View>
-        
-        <Text>Hello</Text>
-        <View>
-            <Button title="Load the routes" onPress={fetchRoutes}></Button>
-        </View>
+    <FlatList
+    data={routes}
+    keyExtractor={(item) => String(item.id)}
+    renderItem={({item}) => (
+    <Button
+    title={item.name}
+    onPress={() => {
+
+      const coords = item.coordinates;
+      const tempCartesian: { x: number; y: number }[] = [];
+
+      for (let i = 0; i < coords.length - 1; i++) {
+        const p1 = coords[i];
+        const p2 = coords[i + 1];
+
+        const segment = routeToCartesian(
+          p1.latitude,
+          p1.longitude,
+          p2.latitude,
+          p2.longitude
+        );
+
+        tempCartesian.push(...segment);
+      }
+
+      router.push({
+      pathname: "/",
+      params: {
+      fetchedCoord: JSON.stringify(item.coordinates),
+      name: item.name,
+      xyCoord: JSON.stringify(tempCartesian),
+      loginLat: String(loginLat ?? ""),
+      loginLon: String(loginLon ?? ""),
+      },
+      });
+    }}
+    />
+    )}>
+    </FlatList>
     </View>
-
-    
-
+    </View>
   )
 }
 export default loadRoute
@@ -68,5 +109,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 12,
     alignSelf: "center",
+  },
+  item: {
+    backgroundColor: '#f9c2ff',
+    padding: 20,
+    marginVertical: 8,
+    marginHorizontal: 16,
+  },
+  title: {
+    fontSize: 32,
   },
 });

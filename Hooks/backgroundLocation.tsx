@@ -1,5 +1,8 @@
 import * as TaskManager from "expo-task-manager";
 import * as Location from "expo-location";
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { userToCartesian } from '../Hooks/cartesian'
+import { dToLine } from '../Hooks/distanceToLine'
 
 export const LOCATION_TASK_NAME = "background-location-task";
 
@@ -26,6 +29,29 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   lastLoggedAt = now;
 
   const { latitude, longitude, accuracy } = locations[0].coords;
+
+  let userLocationCartesian: { x: number; y: number } = {x:0, y:0};
+
+  userLocationCartesian = userToCartesian(latitude, longitude);
+  
+  const getData = async () => {
+    try{
+      const value = await AsyncStorage.getItem("active_route_cartesian");
+      if(value !== null){
+        const routeXY: {x: number; y: number}[] = JSON.parse(value);
+
+        console.log("Whole array: ", routeXY);
+        console.log("first point: ", routeXY[0]);
+        console.log("user as cartesian: ", userLocationCartesian);
+        const distance = dToLine(userLocationCartesian, routeXY);
+        console.log("distance to closest line: ", distance);
+      }
+    }catch(e){
+      console.log("Failed to load active_route_cartesian: ", e);
+    }
+  }
+  getData();
+ 
   console.log(
     `[BG-LOC] ${new Date(now).toISOString()} lat=${latitude} lon=${longitude} acc=${accuracy}`
   );

@@ -9,23 +9,86 @@ import {
 } from '../Hooks/backgroundLocation'
 import supabase from "../config/supabaseClient"
 import Stopwatch from './stopwatch'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 export default function Home() {
   
-    const { id } = useLocalSearchParams();
-    console.log("here is the passed in users ID now that you are on index: ", id)
+  const { loginLat, loginLon, id, fetchedCoord, name, xyCoord } = useLocalSearchParams();
+  const [loadedRoute, setLoadedRoute] = useState<{latitude: number; longitude: number}[]>([]);
+  const [loadedCartesian, setLoadedCartesian ] = useState<{x: number; y: number}[]>([]);
+  const router = useRouter();   
+  const [checkedAuth, setCheckedAuth] = useState(false);
 
-  const router = useRouter();
+  console.log("Cartesian route is: ", xyCoord);
+  
+  useEffect(() => {
+    if(!fetchedCoord) return
+    
+    try{
+      const parsed = JSON.parse(String(fetchedCoord));
 
-  // Call hooks unconditionally at the top
-  const { location, errorMsg } = useLocation();
+      const cleaned = Array.isArray(parsed)
+      ? parsed.filter(
+        (p) =>
+          p && 
+        typeof p.latitude === "number" &&
+        typeof p.longitude === "number"
+      )
+      : [];
+      setLoadedRoute(cleaned);
+    }
+    catch (e){
+      console.log("Failed to parse fetchedCoords: ", e)
+    }
+  }, [fetchedCoord]);
 
+  useEffect(() => {
+  if (!xyCoord) return;
+
+  try {
+    const parsed = JSON.parse(String(xyCoord));
+
+    const cleaned = Array.isArray(parsed)
+      ? parsed.filter(
+          (p) =>
+            p &&
+            typeof p.x === "number" &&
+            typeof p.y === "number"
+        )
+      : [];
+
+    setLoadedCartesian(cleaned);
+
+    const storeData = async (routeXY: {x: number; y: number}[]) =>{
+        try{ 
+          await AsyncStorage.setItem("active_route_cartesian", JSON.stringify(routeXY)); 
+        }catch(e){
+          console.log("Failed to store active_route_cartesian: ", e)
+        }
+    }
+
+    storeData(cleaned);
+
+  } catch (e) {
+    console.log("Failed to parse xyCoord:", e);
+  }
+}, [xyCoord]);
+  
+  console.log("Given lat and lon are: " ,loginLat, " + ", loginLon)
   const cameraPosition = {
-    coordinates: { latitude: 56.4697445, longitude: -2.8583756 },
+    coordinates: {latitude: Number(loginLat), longitude:Number(loginLon)},
     zoom: 15,
   };
-
-  const [checkedAuth, setCheckedAuth] = useState(false);
+  
+  const routePolyline = [
+    {
+      id: "route",
+      width: 6,
+      color: "#e20000",
+      geodesic: true,
+      coordinates: loadedRoute
+    }
+  ]
 
   useEffect(() => {
     let mounted = true;
@@ -55,11 +118,6 @@ export default function Home() {
   // Now it’s safe to early-return because all hooks already ran
   if (!checkedAuth) return null;
 
-  const latitude = location?.coords.latitude;
-  const longitude = location?.coords.longitude;
-
-  console.log("location is: ", latitude, longitude);
-
   return (
     <View style={styles.container}>
       <Text style={styles.title}> Index page</Text>
@@ -72,19 +130,16 @@ export default function Home() {
               <GoogleMaps.View
                 style={styles.map}
                 cameraPosition={cameraPosition}
-                //polylines={[]}
-                //onMapClick={}
+                polylines={routePolyline}
               />
       )}
-
-      {errorMsg ? <Text>{errorMsg}</Text> : null}      
 
       <View style={styles.controls}>
       <Button 
         title="Plan a route" 
         onPress={() => router.push({
           pathname: "/map", 
-          params: { lat: latitude, lon: longitude, id: id }
+          params: { lat: loginLat, lon: loginLon, id: id }
         })}
       />
 
@@ -102,7 +157,7 @@ export default function Home() {
         title="Load Route"
         onPress={() => router.push({
           pathname: "/loadRoute",
-          params: {id: id}
+          params: {id: id, loginLat: loginLat, loginLon: loginLon}
         })}
       />
       </View>
