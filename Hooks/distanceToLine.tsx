@@ -22,13 +22,21 @@ export function distanceToSegment(p: Cartesian, a: Cartesian, b: Cartesian){
     return distance
 }
 
-export function dToLine(userPoint:Cartesian, route: Cartesian[]){
-    let distance = 0;
-    let closestPoint : { x: number; y: number } = {x:0, y:0};
-    let closestDistance = 1000000;
-    let closestPointIndex = 0;
+let lastClosestIndex = -1;
 
-    for(let i = 0; i < route.length; i++){
+export function dToLine(userPoint:Cartesian, route: Cartesian[]){
+    let start = 0;
+    let end = route.length;
+    let closestPoint : { x: number; y: number } = {x:0, y:0};
+    let closestDistance = Infinity;
+    let closestPointIndex = -1;
+
+    if (closestPointIndex !== -1){
+        start = Math.max(0, closestPointIndex - 10);
+        end = Math.min(route.length, closestPointIndex + 10);
+    }
+
+    for(let i = start; i < end; i++){
 
         const distanceToPoint = Math.sqrt(Math.pow((userPoint.x - route[i].x), 2) + Math.pow((userPoint.y - route[i].y), 2));
         if(distanceToPoint < closestDistance){
@@ -37,6 +45,8 @@ export function dToLine(userPoint:Cartesian, route: Cartesian[]){
             closestPointIndex = i
         }
     }
+
+    lastClosestIndex = closestPointIndex;
 
     console.log("Closest point is: ", route[closestPointIndex])
 

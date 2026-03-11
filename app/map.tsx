@@ -4,14 +4,25 @@ import { useLocalSearchParams } from "expo-router";
 import { apiCall } from "../Hooks/route";
 import { useRef, useState } from "react";
 import  supabase  from '../config/supabaseClient'
+import { useLocation } from "../Hooks/location";
 
 type LatLng = { latitude: number; longitude: number };
 
 export default function Map() {
   const chosenRoute = useRef<LatLng[]>([]);
+  const { location, errorMsg } = useLocation();
+  const { id } = useLocalSearchParams();
+  
+  const currentLon = location?.coords.longitude ?? -2.8583756;
+  const currentLat = location?.coords.latitude ?? 56.4697445;
 
-  const { lat, lon, id } = useLocalSearchParams();
-  console.log("lat lon from index: ", lat, lon, ". UserId from index: ", id);
+  const cameraPosition = {
+    coordinates: { latitude: currentLat, longitude: currentLon },
+    zoom: 15,
+  };
+
+  console.log("UserId from index: ", id);
+  console.log("Current location: ", currentLat, currentLon);
 
   const [routeName, onChangeText] = useState(' ');
   const [startSelected, setStartSelected] = useState(false); 
@@ -21,11 +32,6 @@ export default function Map() {
   const [routeCoords, setRouteCoords] = useState<
     { latitude: number; longitude: number }[]
   >([]);
-
-  const cameraPosition = {
-    coordinates: { latitude: 56.4697445, longitude: -2.8583756 },
-    zoom: 15,
-  };
 
   const myPolyline = [
     {
@@ -92,7 +98,41 @@ export default function Map() {
 
   return (
     <View style={styles.container}>
-      {Platform.OS === "ios" && <AppleMaps.View style={styles.map} />}
+      {Platform.OS === "ios" && (
+        <AppleMaps.View
+          style={styles.map}
+          cameraPosition={cameraPosition}
+          polylines={myPolyline}
+          onMapClick={(e) => {
+            const lat = e.coordinates.latitude;
+            const lon = e.coordinates.longitude;
+
+            if (lat === undefined || lon === undefined) {
+              console.log("Click event missing coordinates");
+              return;
+            }
+
+            if (startSelected) {
+              console.log("Start added:", lat, lon);
+              chosenRoute.current.push({ latitude: lat, longitude: lon });
+              setStartCoord(true);
+              setStartSelected(false);
+              return;
+            }
+
+            if (addPoint) {
+              console.log("Point added:", lat, lon);
+              const point = { latitude: lat, longitude: lon };
+              chosenRoute.current.push(point);
+              setAddPoint(false);
+              onFetchRoute(point);
+              return;
+            }
+
+            console.log("Click ignored (no mode active).");
+          }}
+        />
+      )}
 
       {Platform.OS === "android" && (
         <GoogleMaps.View
@@ -134,7 +174,6 @@ export default function Map() {
 
       <View style={styles.buttonContainer}>
         
-
       </View>
 
       {!startCoord && (

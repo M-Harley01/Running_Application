@@ -13,6 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 
 export default function Home() {
   
+  const { location, errorMsg } = useLocation();
   const { loginLat, loginLon, id, fetchedCoord, name, xyCoord } = useLocalSearchParams();
   const [loadedRoute, setLoadedRoute] = useState<{latitude: number; longitude: number}[]>([]);
   const [loadedCartesian, setLoadedCartesian ] = useState<{x: number; y: number}[]>([]);
@@ -74,9 +75,11 @@ export default function Home() {
   }
 }, [xyCoord]);
   
-  console.log("Given lat and lon are: " ,loginLat, " + ", loginLon)
+  const currentLat = location?.coords.latitude ?? 56.4697445;
+  const currentLon = location?.coords.longitude ?? -2.8583756;
+
   const cameraPosition = {
-    coordinates: {latitude: Number(loginLat), longitude:Number(loginLon)},
+    coordinates: { latitude: currentLat, longitude: currentLon },
     zoom: 15,
   };
   
@@ -126,6 +129,14 @@ export default function Home() {
         <Stopwatch></Stopwatch>
       </View>
 
+      {Platform.OS === "ios" && (
+        <AppleMaps.View
+          style={styles.map}
+          cameraPosition={cameraPosition}
+          polylines={routePolyline}
+        />
+      )}
+
       {Platform.OS === "android" && (
               <GoogleMaps.View
                 style={styles.map}
@@ -139,7 +150,7 @@ export default function Home() {
         title="Plan a route" 
         onPress={() => router.push({
           pathname: "/map", 
-          params: { lat: loginLat, lon: loginLon, id: id }
+          params: { id: id }
         })}
       />
 

@@ -2,17 +2,12 @@ import React, { useState } from 'react'
 import { Alert, StyleSheet, View, Text, TextInput, TouchableOpacity } from 'react-native'
 import  supabase  from '../config/supabaseClient'
 import { useRouter } from "expo-router";
-import { useLocation } from '../Hooks/location'
 
 export default function Auth() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter();
-  const { location, errorMsg } = useLocation(); 
-
-  const DEFAULT_LAT = 0;
-  const DEFAULT_LON = 0;
 
   async function signInWithEmail() {
     setLoading(true)
@@ -27,11 +22,9 @@ export default function Auth() {
       console.log("user logged in: ", userId)
 
       router.push({
-        pathname: "/",
-        params: { id: userId, 
-        loginLat: location?.coords.latitude ?? DEFAULT_LAT, 
-        loginLon: location?.coords.longitude ?? DEFAULT_LON }
-      })
+      pathname: "/",
+      params: { id: userId }
+    })
     }
     setLoading(false)
   }
