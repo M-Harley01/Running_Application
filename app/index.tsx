@@ -20,7 +20,7 @@ export default function Home() {
   const router = useRouter();   
   const [checkedAuth, setCheckedAuth] = useState(false);
 
-  console.log("Cartesian route is: ", xyCoord);
+  console.log("Cartesian route is: ", id);
   
   useEffect(() => {
     if(!fetchedCoord) return
@@ -127,6 +127,13 @@ export default function Home() {
 
       <View style={styles.stopwatch}>
         <Stopwatch></Stopwatch>
+        <Button 
+        title="View runs" 
+        onPress={() => router.push({
+          pathname: "/listRuns", 
+          params: { id: id }
+        })}
+      />
       </View>
 
       {Platform.OS === "ios" && (

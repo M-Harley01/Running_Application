@@ -36,7 +36,7 @@ function loadRoute(){
     }
 
      if(data){
-      setRoutes(data)
+      setRoutes(data);
       if (!data.length) return;
     }
   };
