@@ -1,79 +1,98 @@
-import { StyleSheet, Text, View } from 'react-native'
-import React from 'react'
-import { Link } from 'expo-router'
-import {
-  LineChart,
-  BarChart,
-  PieChart,
-  ProgressChart,
-  ContributionGraph,
-  StackedBarChart
-} from "react-native-chart-kit";
+import { StyleSheet, Text, View, Dimensions } from 'react-native'
+import React, { useState, useEffect } from 'react'
+import { Link, useLocalSearchParams } from 'expo-router'
+import { LineChart } from "react-native-chart-kit";
+import supabase from '../config/supabaseClient'
 
-import { Dimensions } from "react-native";
 const screenWidth = Dimensions.get("window").width;
 
-const About = () => {
+const chartConfig = {
+  backgroundGradientFrom: "#1E2923",
+  backgroundGradientFromOpacity: 0,
+  backgroundGradientTo: "#08130D",
+  backgroundGradientToOpacity: 0.5,
+  color: (opacity = 1) => `rgba(26, 255, 146, ${opacity})`,
+  strokeWidth: 2,
+  barPercentage: 0.5,
+  useShadowColorFromDataset: false
+};
+
+function About() {
+  const { runId } = useLocalSearchParams();
+  const [chartData, setChartData] = useState<any>(null);
+
+  console.log("passed in run is: ", runId);
+
+  const fetchSplits = async () => {
+    if (!runId) {
+      console.log("no run id passed in the params");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('run_splits')
+      .select(`
+        split_number,
+        avg_pace_per_km
+      `)
+      .eq('run_id', runId)
+      .order('split_number', { ascending: true });
+
+    if (error) {
+      console.log("error with fetching splits", error.message, error);
+      return;
+    }
+
+    if (data) {
+      console.log("here is the data ", data);
+
+      const labels = data.map((item) => `${item.split_number} km`);
+      const paceValues = data.map((item) => item.avg_pace_per_km);
+
+      const paceData = {
+        labels,
+        datasets: [
+          {
+            data: paceValues,
+            color: (opacity = 1) => `rgba(134, 65, 244, ${opacity})`,
+            strokeWidth: 2
+          }
+        ],
+        legend: ["Pace"]
+      };
+
+      setChartData(paceData);
+    }
+  };
+
+  useEffect(() => {
+    fetchSplits();
+  }, [runId]);
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>This better work too ngl</Text>
+      <Text style={styles.title}>line chart</Text>
 
-      <View>
-  <Text>Bezier Line Chart</Text>
-  <LineChart
-    data={{
-      labels: ["January", "February", "March", "April", "May", "June"],
-      datasets: [
-        {
-          data: [
-            Math.random() * 100,
-            Math.random() * 100,
-            Math.random() * 100,
-            Math.random() * 100,
-            Math.random() * 100,
-            Math.random() * 100
-          ]
-        }
-      ]
-    }}
-    width={Dimensions.get("window").width} // from react-native
-    height={220}
-    yAxisLabel="$"
-    yAxisSuffix="k"
-    yAxisInterval={1} // optional, defaults to 1
-    chartConfig={{
-      backgroundColor: "#e26a00",
-      backgroundGradientFrom: "#fb8c00",
-      backgroundGradientTo: "#ffa726",
-      decimalPlaces: 2, // optional, defaults to 2dp
-      color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-      labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
-      style: {
-        borderRadius: 16
-      },
-      propsForDots: {
-        r: "6",
-        strokeWidth: "2",
-        stroke: "#ffa726"
-      }
-    }}
-    bezier
-    style={{
-      marginVertical: 8,
-      borderRadius: 16
-    }}
-  />
-</View>
-    
+      {chartData && (
+        <LineChart
+          data={chartData}
+          width={screenWidth}
+          height={256}
+          verticalLabelRotation={30}
+          chartConfig={chartConfig}
+          bezier
+        />
+      )}
+
       <Link href={"/"}>Back Home</Link>
     </View>
-  )
+  );
 }
 
-export default About
+export default About;
 
 const styles = StyleSheet.create({
-    container:{
+  container: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center'
@@ -82,10 +101,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 28,
   },
-  card:{
+  card: {
     backgroundColor: '#eee',
     padding: 20,
     borderRadius: 5,
     boxShadow: '4px 4px rgba(0,0,0,0.1)'
   }
-})
+});

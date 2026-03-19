@@ -34,6 +34,7 @@ function listRuns(){
 
         if(data){
             setRuns(data);
+            console.log("here is the data: ", data);
             if (!data.length) return;
         }
     };
@@ -55,6 +56,7 @@ function listRuns(){
           router.push({
           pathname: "/about",
           params: {
+            runId: item.id,
           },
           });
         }}
