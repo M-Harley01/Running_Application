@@ -3,8 +3,17 @@ import * as Location from "expo-location";
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { userToCartesian } from '../Hooks/cartesian'
 import { dToLine } from '../Hooks/distanceToLine'
+import React, { useState } from "react"
+import { haversine } from '../Hooks/haversine'
 
 export const LOCATION_TASK_NAME = "background-location-task";
+type TrackedPoint = {
+  latitude: number;
+  longitude: number;
+  timestamp: number; 
+};
+
+let trackedUser: TrackedPoint[] = [];
 
 // Throttle logging/storage so you effectively get "one point per minute"
 const LOG_EVERY_MS = 10_000;
@@ -33,16 +42,15 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   let userLocationCartesian: { x: number; y: number } = {x:0, y:0};
 
   userLocationCartesian = userToCartesian(latitude, longitude);
+
+   const userPoint: TrackedPoint = {latitude: latitude, longitude: longitude, timestamp: now};
+    trackedUser.push(userPoint);
   
-  const getData = async () => {
+  const getCartesian = async () => {
     try{
       const value = await AsyncStorage.getItem("active_route_cartesian");
       if(value !== null){
         const routeXY: {x: number; y: number}[] = JSON.parse(value);
-
-        console.log("Whole array: ", routeXY);
-        console.log("first point: ", routeXY[0]);
-        console.log("user as cartesian: ", userLocationCartesian);
         const distance = dToLine(userLocationCartesian, routeXY);
         console.log("distance to closest line: ", distance);
       }
@@ -50,11 +58,16 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
       console.log("Failed to load active_route_cartesian: ", e);
     }
   }
-  getData();
+  getCartesian();
  
+
   console.log(
     `[BG-LOC] ${new Date(now).toISOString()} lat=${latitude} lon=${longitude} acc=${accuracy}`
   );
+
+  for(let i =0; i < trackedUser.length; i++){
+    console.log("User point number ", i, ": " ,trackedUser[i].latitude, trackedUser[i].longitude, trackedUser[i].timestamp);
+  }
 
 });
 
@@ -76,6 +89,21 @@ export async function ensureBackgroundLocationPermissions(): Promise<boolean> {
 
 //Starts background location updates (keeps working when screen is locked / app in background).
 export async function startBackgroundTracking(): Promise<void> {
+
+  const getStart = async () => {
+    try{
+      const value = await AsyncStorage.getItem("start_run_location");
+      if(value !== null){
+        const userStart: TrackedPoint = JSON.parse(value);
+        trackedUser.push(userStart);
+        console.log("here is the start in the background: ", trackedUser[0].latitude, trackedUser[0].longitude, trackedUser[0].timestamp)
+      }
+    }catch(e){
+      console.log("Failed to load active_route_cartesian: ", e);
+    }
+  }
+  getStart();
+
   const ok = await ensureBackgroundLocationPermissions();
   if (!ok) return;
 
@@ -92,7 +120,7 @@ export async function startBackgroundTracking(): Promise<void> {
 
   await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
 
-    accuracy: Location.Accuracy.Highest,
+    accuracy: Location.Accuracy.BestForNavigation,
     timeInterval: 10_000, // aim for ~60s on Android
     distanceInterval: 0,  // set >0 if you want only when user moves
 

@@ -16,6 +16,7 @@ export function useLocation() {
           }
     
           let loc = await Location.getCurrentPositionAsync({});
+          console.log("here is the foreground location: ",loc)
           setLocation(loc);
         })();
       },[]);

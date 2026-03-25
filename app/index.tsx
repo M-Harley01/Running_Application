@@ -2,6 +2,7 @@ import { AppleMaps, GoogleMaps } from "expo-maps";
 import { StyleSheet, Text, View, Button, Platform } from 'react-native'
 import React, { useEffect, useState } from "react"
 import { Link, useRouter, useLocalSearchParams } from 'expo-router'
+import * as Location from "expo-location";
 import { useLocation } from '../Hooks/location'
 import { 
   startBackgroundTracking, 
@@ -10,6 +11,7 @@ import {
 import supabase from "../config/supabaseClient"
 import Stopwatch from './stopwatch'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import DropdownComponent from './dropDownTest'
 
 export default function Home() {
   
@@ -19,8 +21,9 @@ export default function Home() {
   const [loadedCartesian, setLoadedCartesian ] = useState<{x: number; y: number}[]>([]);
   const router = useRouter();   
   const [checkedAuth, setCheckedAuth] = useState(false);
+  const [startRunLocation, setStartRunLocation] = useState<Location.LocationObject | null>(null);
 
-  console.log("Cartesian route is: ", id);
+  console.log("User id is: ", id);
   
   useEffect(() => {
     if(!fetchedCoord) return
@@ -60,7 +63,7 @@ export default function Home() {
 
     setLoadedCartesian(cleaned);
 
-    const storeData = async (routeXY: {x: number; y: number}[]) =>{
+    const storeCartesian = async (routeXY: {x: number; y: number}[]) =>{
         try{ 
           await AsyncStorage.setItem("active_route_cartesian", JSON.stringify(routeXY)); 
         }catch(e){
@@ -68,7 +71,7 @@ export default function Home() {
         }
     }
 
-    storeData(cleaned);
+    storeCartesian(cleaned);
 
   } catch (e) {
     console.log("Failed to parse xyCoord:", e);
@@ -124,6 +127,7 @@ export default function Home() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}> Index page</Text>
+      <DropdownComponent></DropdownComponent>
 
       <View style={styles.stopwatch}>
         <Stopwatch></Stopwatch>
@@ -163,7 +167,37 @@ export default function Home() {
 
       <Button
         title="Start Run (Background Tracking)"
-        onPress={() => startBackgroundTracking()}
+        onPress={async () => {
+          try {
+            const foregroundLocation = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.High,
+            });
+
+            const date = new Date(foregroundLocation.timestamp);
+            setStartRunLocation(foregroundLocation);
+            console.log("Starting foreground location:", foregroundLocation.coords.latitude, foregroundLocation.coords.longitude, date);
+
+            const storeStartLocation = async () => {
+              try {
+                await AsyncStorage.setItem(
+                  "start_run_location",
+                  JSON.stringify({
+                    latitude: foregroundLocation.coords.latitude,
+                    longitude: foregroundLocation.coords.longitude,
+                    timestamp: foregroundLocation.timestamp
+                  })
+                );
+              } catch (error) {
+                console.log("Failed to store start_run_location:", error);
+              }
+            };
+
+            await storeStartLocation();
+            await startBackgroundTracking();
+          } catch (e) {
+            console.log("Failed to start run:", e);
+          }
+        }}
       />
 
       <Button
