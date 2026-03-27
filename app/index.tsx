@@ -6,24 +6,30 @@ import * as Location from "expo-location";
 import { useLocation } from '../Hooks/location'
 import { 
   startBackgroundTracking, 
-  stopBackgroundTracking 
+  stopBackgroundTracking,
+  clearTrackedUser 
 } from '../Hooks/backgroundLocation'
 import supabase from "../config/supabaseClient"
-import Stopwatch from './stopwatch'
+import { Stopwatch } from './stopwatch'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import DropdownComponent from './dropDownTest'
 
 export default function Home() {
   
-  const { location, errorMsg } = useLocation();
-  const { loginLat, loginLon, id, fetchedCoord, name, xyCoord } = useLocalSearchParams();
+  const { location } = useLocation();
+  const { loginLat, loginLon, id, fetchedCoord, xyCoord } = useLocalSearchParams();
   const [loadedRoute, setLoadedRoute] = useState<{latitude: number; longitude: number}[]>([]);
   const [loadedCartesian, setLoadedCartesian ] = useState<{x: number; y: number}[]>([]);
   const router = useRouter();   
   const [checkedAuth, setCheckedAuth] = useState(false);
   const [startRunLocation, setStartRunLocation] = useState<Location.LocationObject | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [resetKey, setResetKey] = useState(0);
 
-  console.log("User id is: ", id);
+  useEffect(() => {
+  console.log("User id is:", id);
+}, [id]);
   
   useEffect(() => {
     if(!fetchedCoord) return
@@ -127,17 +133,10 @@ export default function Home() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}> Index page</Text>
-      <DropdownComponent></DropdownComponent>
+      <DropdownComponent id={id} loginLat={loginLat} loginLon={loginLon} />
 
       <View style={styles.stopwatch}>
-        <Stopwatch></Stopwatch>
-        <Button 
-        title="View runs" 
-        onPress={() => router.push({
-          pathname: "/listRuns", 
-          params: { id: id }
-        })}
-      />
+       <Stopwatch isRunning={isRunning} resetTrigger={resetKey} />
       </View>
 
       {Platform.OS === "ios" && (
@@ -156,22 +155,53 @@ export default function Home() {
               />
       )}
 
-      <View style={styles.controls}>
-      <Button 
-        title="Plan a route" 
-        onPress={() => router.push({
-          pathname: "/map", 
-          params: { id: id }
-        })}
-      />
+      {isPaused && (
+        <View style={styles.endRunOverlay}>
+          <Button
+          title="End run"
+            onPress={async () => {
+              console.log("Run ended");
+              setResetKey(prev => prev + 1);
 
+              const before = await AsyncStorage.getItem("user_points_array");
+              console.log("HBefore deleting user_points_array: ", before);
+
+              await AsyncStorage.multiRemove([
+                "user_points_array",
+                "start_run_location",
+                "active_route_cartesian"
+              ]);
+
+              setLoadedRoute([]);
+              setLoadedCartesian([]);
+
+              clearTrackedUser();
+              setIsPaused(false);
+
+              const afterUserPoints = await AsyncStorage.getItem("user_points_array");
+              const afterStartLocation = await AsyncStorage.getItem("start_run_location");
+              const keys = await AsyncStorage.getAllKeys();
+
+              console.log("After delete user_points_array:", afterUserPoints);
+              console.log("After delete start_run_location:", afterStartLocation);
+              console.log("Remaining AsyncStorage keys:", keys);
+            }}
+          />
+        </View>
+  )}
+
+      <View style={styles.controls}>
+    
       <Button
         title="Start Run (Background Tracking)"
         onPress={async () => {
+          setIsPaused(false);
           try {
             const foregroundLocation = await Location.getCurrentPositionAsync({
               accuracy: Location.Accuracy.High,
             });
+
+            setIsRunning(true);
 
             const date = new Date(foregroundLocation.timestamp);
             setStartRunLocation(foregroundLocation);
@@ -202,16 +232,26 @@ export default function Home() {
 
       <Button
         title="Stop Run"
-        onPress={() => stopBackgroundTracking()}
+        onPress={() => {
+          stopBackgroundTracking();
+          setIsRunning(false);
+          setIsPaused(true);
+        }}
       />
 
-       <Button
-        title="Load Route"
-        onPress={() => router.push({
-          pathname: "/loadRoute",
-          params: {id: id, loginLat: loginLat, loginLon: loginLon}
-        })}
-      />
+      {loadedRoute.length > 0 && !isRunning && !isPaused &&(
+        <Button
+          title="Clear Loaded Route"
+          onPress={async () => {
+            setLoadedRoute([]);
+            setLoadedCartesian([]);
+
+            await AsyncStorage.removeItem("active_route_cartesian");
+
+            console.log("Loaded route cleared");
+          }}
+        />
+      )}
       </View>
         
     </View>
@@ -281,7 +321,16 @@ const styles = StyleSheet.create({
     zIndex: 10,
     elevation: 10,
   },
-
+  endRunOverlay: {
+  position: "absolute",
+  top: 20,
+  alignSelf: "center",
+  zIndex: 20,
+  elevation: 20,
+  backgroundColor: "#ffffff",
+  borderRadius: 8,
+  padding: 6,
+  },
   display: {},
   startButton: {},
   stopButton: {},

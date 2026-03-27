@@ -1,6 +1,6 @@
-import { StyleSheet, Text, View, Dimensions } from 'react-native'
+import { StyleSheet, Text, View, Dimensions, Button } from 'react-native'
 import React, { useState, useEffect } from 'react'
-import { Link, useLocalSearchParams } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import { LineChart } from "react-native-chart-kit";
 import supabase from '../config/supabaseClient'
 
@@ -18,7 +18,8 @@ const chartConfig = {
 };
 
 function About() {
-  const { runId } = useLocalSearchParams();
+  const router = useRouter();
+  const { runId, id  } = useLocalSearchParams();
   const [chartData, setChartData] = useState<any>(null);
 
   console.log("passed in run is: ", runId);
@@ -84,7 +85,17 @@ function About() {
         />
       )}
 
-      <Link href={"/"}>Back Home</Link>
+      <Button
+        title="Back Home"
+        onPress={() => {
+          router.replace({
+            pathname: "/",
+            params: {
+              id: String(id ?? ""),
+            },
+          });
+        }}
+      />
     </View>
   );
 }

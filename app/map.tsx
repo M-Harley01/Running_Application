@@ -1,6 +1,6 @@
 import { AppleMaps, GoogleMaps } from "expo-maps";
 import { Platform, View, StyleSheet, Button, TextInput } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { apiCall } from "../Hooks/route";
 import { useRef, useState } from "react";
 import  supabase  from '../config/supabaseClient'
@@ -9,9 +9,13 @@ import { useLocation } from "../Hooks/location";
 type LatLng = { latitude: number; longitude: number };
 
 export default function Map() {
+  const router = useRouter();
   const chosenRoute = useRef<LatLng[]>([]);
   const { location, errorMsg } = useLocation();
   const { id } = useLocalSearchParams();
+
+  console.log("MAP SCREEN RENDERED");
+  console.log("Params id:", id);
   
   const currentLon = location?.coords.longitude ?? -2.8583756;
   const currentLat = location?.coords.latitude ?? 56.4697445;
@@ -193,6 +197,18 @@ export default function Map() {
         {routeCoords.length > 1 && routeName !== ' ' && (
           <Button title="Create route" onPress={createRoute}/>
         )}
+
+        <Button
+          title="Cancel"
+          onPress={() => {
+            router.replace({
+              pathname: "/",
+              params: {
+                id: String(id ?? ""),
+              },
+            });
+          }}
+        />
 
       <View style={styles.textContainer}>
         <TextInput style={styles.input} onChangeText={onChangeText} value={routeName}/>

@@ -1,91 +1,70 @@
-import React, {useState, useEffect, useRef} from 'react';
-import { View, StyleSheet, Text, Button, Pressable } from 'react-native'
+import React, { useEffect, useState, useRef } from "react"
+import { StyleSheet, Text, View } from 'react-native'
 
-function Stopwatch(){
+type StopwatchProps = {
+  isRunning: boolean;
+  resetTrigger?: number; // optional for resetting
+};
 
-    const [isRunning, setIsRunning ] = useState(false);
-    const [elapsedTime, setElapsedTime] = useState(0);
-    const intervalIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const startTimeRef = useRef(0);
+export function Stopwatch({ isRunning, resetTrigger }: StopwatchProps) {
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const intervalIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef(0);
 
-    useEffect(() => {
+  // Handle start/stop
+  useEffect(() => {
+    if (isRunning) {
+      startTimeRef.current = Date.now() - elapsedTime;
 
-        if(isRunning){
-            intervalIdRef.current = setInterval(() => {
-                setElapsedTime(Date.now() - startTimeRef.current);
-            }, 10);
-        }
-
-        return () => {
-            if (intervalIdRef.current !== null) {
-            clearInterval(intervalIdRef.current);
-        } 
-        }
-
-    }, [isRunning]);
-
-    function start(){
-        setIsRunning(true);
-        startTimeRef.current = Date.now() - elapsedTime;
+      intervalIdRef.current = setInterval(() => {
+        setElapsedTime(Date.now() - startTimeRef.current);
+      }, 10);
+    } else {
+      if (intervalIdRef.current) {
+        clearInterval(intervalIdRef.current);
+      }
     }
 
-    function stop(){
-        setIsRunning(false);
-    }
+    return () => {
+      if (intervalIdRef.current) {
+        clearInterval(intervalIdRef.current);
+      }
+    };
+  }, [isRunning]);
 
-    function reset(){
-        setElapsedTime(0);
-        setIsRunning(false);
-    }
+  // Optional reset trigger
+  useEffect(() => {
+    setElapsedTime(0);
+  }, [resetTrigger]);
 
-    function formatTime(){
+  function formatTime() {
+    let hours = Math.floor(elapsedTime / (1000 * 60 * 60));
+    let minutes = Math.floor((elapsedTime / (1000 * 60)) % 60);
+    let seconds = Math.floor((elapsedTime / 1000) % 60);
+    let milliseconds = Math.floor((elapsedTime % 1000) / 10);
 
-        let hours = Math.floor(elapsedTime / (1000 * 60 * 60));
-        let minutes = Math.floor(elapsedTime / (1000* 60) % 60);
-        let seconds = Math.floor(elapsedTime / (1000) % 60);
-        let milliseconds = Math.floor((elapsedTime % 1000) / 10);
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}:${String(milliseconds).padStart(2, "0")}`;
+  }
 
-        const hh = String(hours).padStart(2, "0");
-        const mm = String(minutes).padStart(2, "0");
-        const ss = String(seconds).padStart(2, "0");
-        const ms = String(milliseconds).padStart(2, "0");
-
-        return `${hh}:${mm}:${ss}:${ms}`
-    }
-    
-    return(    
-        <View style={styles.stopwatch}>
-            <View style={styles.display}>
-                <Text>{formatTime()}</Text>
-            </View>
-            <View style={styles.controls}>
-                <Pressable style={styles.startButton} onPress={start}><Text>Start</Text></Pressable>
-                <Pressable style={styles.stopButton} onPress={stop}><Text>Stop</Text></Pressable>
-                <Pressable style={styles.resetButton} onPress={reset}><Text>Reset</Text></Pressable>
-
-            </View>
-        </View>
-    )
+  return (
+    <View style={styles.stopwatch}>
+      <Text>{formatTime()}</Text>
+    </View>
+  );
 }
-export default Stopwatch
 
 const styles = StyleSheet.create({
-  stopwatch:{
 
+  stopwatch: {
+    width: "100%",
+    height: 150,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#111",
+    overflow: "hidden",
   },
-  display:{
 
-  },
-  controls:{
-
-  },
-  startButton:{
-
-  },
-  stopButton:{
-
-  },
-  resetButton:{
-
-  }
-})
+});

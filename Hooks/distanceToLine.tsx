@@ -42,7 +42,7 @@ export function dToLine(userPoint:Cartesian, route: Cartesian[]){
         if(distanceToPoint < closestDistance){
             closestPoint = {x: route[i].x, y: route[i].y};
             closestDistance = distanceToPoint;
-            closestPointIndex = i
+            closestPointIndex = i;
         }
     }
 

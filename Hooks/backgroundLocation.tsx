@@ -96,13 +96,17 @@ export async function startBackgroundTracking(): Promise<void> {
       if(value !== null){
         const userStart: TrackedPoint = JSON.parse(value);
         trackedUser.push(userStart);
-        console.log("here is the start in the background: ", trackedUser[0].latitude, trackedUser[0].longitude, trackedUser[0].timestamp)
+        console.log("here is the start in the background: ", 
+          trackedUser[0].latitude, 
+          trackedUser[0].longitude, 
+          trackedUser[0].timestamp
+        );
       }
     }catch(e){
       console.log("Failed to load active_route_cartesian: ", e);
     }
   }
-  getStart();
+  await getStart();
 
   const ok = await ensureBackgroundLocationPermissions();
   if (!ok) return;
@@ -115,21 +119,12 @@ export async function startBackgroundTracking(): Promise<void> {
     return;
   }
 
-  // Reset throttle on start so first point logs immediately
   lastLoggedAt = 0;
 
   await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-
     accuracy: Location.Accuracy.BestForNavigation,
     timeInterval: 10_000, // aim for ~60s on Android
     distanceInterval: 0,  // set >0 if you want only when user moves
-
-    // Optional but commonly used for fitness-style tracking:
-    // pausesUpdatesAutomatically: false, // iOS only
-    // showsBackgroundLocationIndicator: true, // iOS only
-
-    // Android: keeping this enabled typically results in a single persistent
-    // "tracking active" notification while tracking is running.
     foregroundService: {
       notificationTitle: "Run tracking active",
       notificationBody: "Your location is being recorded in the background.",
@@ -150,10 +145,26 @@ export async function stopBackgroundTracking(): Promise<void> {
   }
 
   await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+
+   try {
+    await AsyncStorage.setItem(
+      "user_points_array",
+      JSON.stringify(trackedUser)
+    );
+  } catch (e) {
+    console.log("Failed to store user_points_array:", e);
+  }
+
   console.log("[BG-LOC] Stopped");
 }
 
 // Convenience helper if you want to show "Start/Stop" based on current state.
 export async function isBackgroundTrackingRunning(): Promise<boolean> {
   return Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+}
+
+export function clearTrackedUser(): void {
+  trackedUser = [];
+  lastLoggedAt = 0;
+  console.log("[BG-LOC] Cleared tracked user array");
 }

@@ -53,10 +53,11 @@ function listRuns(){
         <Button
         title={item.id}
         onPress={() => {
-          router.push({
+          router.replace({
           pathname: "/about",
           params: {
-            runId: item.id,
+            runId: String(item.id),
+            id: String(id ?? ""),
           },
           });
         }}
@@ -64,6 +65,17 @@ function listRuns(){
         )}>
         </FlatList>
         </View>
+        <Button
+          title="Cancel"
+          onPress={() => {
+            router.replace({
+              pathname: "/",
+              params: {
+                id: String(id ?? ""),
+              },
+            });
+          }}
+        />
         </View>
       )
 

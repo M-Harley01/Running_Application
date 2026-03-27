@@ -73,20 +73,36 @@ function loadRoute(){
         tempCartesian.push(...segment);
       }
 
-      router.push({
+      router.replace({
       pathname: "/",
       params: {
-      fetchedCoord: JSON.stringify(item.coordinates),
-      name: item.name,
-      xyCoord: JSON.stringify(tempCartesian),
-      loginLat: String(loginLat ?? ""),
-      loginLon: String(loginLon ?? ""),
+        id: String(id ?? ""),
+        fetchedCoord: JSON.stringify(item.coordinates),
+        name: item.name,
+        xyCoord: JSON.stringify(tempCartesian),
+        loginLat: String(loginLat ?? ""),
+        loginLon: String(loginLon ?? ""),
       },
       });
     }}
     />
     )}>
     </FlatList>
+    </View>
+    <View>
+      <Button
+      title="Cancel"
+      onPress={()=>{
+        router.replace({
+      pathname: "/",
+      params: {
+        id: String(id ?? ""),
+        loginLat: String(loginLat ?? ""),
+        loginLon: String(loginLon ?? ""),
+      },
+      });
+      }}
+      />
     </View>
     </View>
   )
