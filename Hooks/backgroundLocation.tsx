@@ -10,7 +10,9 @@ export const LOCATION_TASK_NAME = "background-location-task";
 type TrackedPoint = {
   latitude: number;
   longitude: number;
-  timestamp: number; 
+  timestamp: number;
+  altitude?: number;
+  accuracy?: number; 
 };
 
 let trackedUser: TrackedPoint[] = [];
@@ -37,13 +39,13 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (now - lastLoggedAt < LOG_EVERY_MS) return;
   lastLoggedAt = now;
 
-  const { latitude, longitude, accuracy } = locations[0].coords;
+  const { latitude, longitude, accuracy, altitude } = locations[0].coords;
 
   let userLocationCartesian: { x: number; y: number } = {x:0, y:0};
 
   userLocationCartesian = userToCartesian(latitude, longitude);
 
-   const userPoint: TrackedPoint = {latitude: latitude, longitude: longitude, timestamp: now};
+   const userPoint: TrackedPoint = {latitude: latitude, longitude: longitude, timestamp: now, altitude: altitude?? 0};
     trackedUser.push(userPoint);
   
   const getCartesian = async () => {
