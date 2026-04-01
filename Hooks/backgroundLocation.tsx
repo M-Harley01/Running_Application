@@ -3,8 +3,7 @@ import * as Location from "expo-location";
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { userToCartesian } from '../Hooks/cartesian'
 import { dToLine } from '../Hooks/distanceToLine'
-import React, { useState } from "react"
-import { haversine } from '../Hooks/haversine'
+import { calculateSplits, calculateElevation } from '../Hooks/calculateSplits'
 
 export const LOCATION_TASK_NAME = "background-location-task";
 type TrackedPoint = {
@@ -16,6 +15,7 @@ type TrackedPoint = {
 };
 
 let trackedUser: TrackedPoint[] = [];
+let lastStatus: string | null = null;
 
 // Throttle logging/storage so you effectively get "one point per minute"
 const LOG_EVERY_MS = 10_000;
@@ -45,16 +45,34 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
 
   userLocationCartesian = userToCartesian(latitude, longitude);
 
-   const userPoint: TrackedPoint = {latitude: latitude, longitude: longitude, timestamp: now, altitude: altitude?? 0};
-    trackedUser.push(userPoint);
+   const userPoint: TrackedPoint = {
+    latitude: latitude, 
+    longitude: longitude, 
+    timestamp: now, 
+    altitude: altitude?? 0
+  };
+  trackedUser.push(userPoint);
   
   const getCartesian = async () => {
     try{
+      const OFF_ROUTE_THRESHOLD = 0.03;
       const value = await AsyncStorage.getItem("active_route_cartesian");
       if(value !== null){
         const routeXY: {x: number; y: number}[] = JSON.parse(value);
         const distance = dToLine(userLocationCartesian, routeXY);
         console.log("distance to closest line: ", distance);
+
+        if (distance > OFF_ROUTE_THRESHOLD) {
+          if (lastStatus !== "true") {
+            await AsyncStorage.setItem("off_route_status", "true");
+            lastStatus = "true";
+          }
+        } else {
+          if (lastStatus !== "false") {
+            await AsyncStorage.setItem("off_route_status", "false");
+            lastStatus = "false";
+          }
+        }
       }
     }catch(e){
       console.log("Failed to load active_route_cartesian: ", e);
@@ -62,7 +80,6 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   }
   getCartesian();
  
-
   console.log(
     `[BG-LOC] ${new Date(now).toISOString()} lat=${latitude} lon=${longitude} acc=${accuracy}`
   );
@@ -141,6 +158,7 @@ export async function stopBackgroundTracking(): Promise<void> {
   const started = await Location.hasStartedLocationUpdatesAsync(
     LOCATION_TASK_NAME
   );
+
   if (!started) {
     console.log("[BG-LOC] Not running");
     return;
@@ -148,16 +166,36 @@ export async function stopBackgroundTracking(): Promise<void> {
 
   await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
 
-   try {
+  console.log("[BG-LOC] Stopped");
+}
+
+export async function finaliseRun(): Promise<void> {
+  const started = await Location.hasStartedLocationUpdatesAsync(
+    LOCATION_TASK_NAME
+  );
+
+  if (started) {
+    await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+  }
+
+  try {
     await AsyncStorage.setItem(
       "user_points_array",
       JSON.stringify(trackedUser)
     );
-  } catch (e) {
-    console.log("Failed to store user_points_array:", e);
-  }
 
-  console.log("[BG-LOC] Stopped");
+    const splits = calculateSplits(trackedUser);
+    const elevation = calculateElevation(trackedUser);
+
+    await AsyncStorage.setItem("run_splits", JSON.stringify(splits));
+    await AsyncStorage.setItem("run_elevation", JSON.stringify(elevation));
+
+    console.log("[BG-LOC] Run finalised");
+    console.log("[BG-LOC] Splits:", splits);
+    console.log("[BG-LOC] Elevation:", elevation);
+  } catch (e) {
+    console.log("Failed to finalise run:", e);
+  }
 }
 
 // Convenience helper if you want to show "Start/Stop" based on current state.

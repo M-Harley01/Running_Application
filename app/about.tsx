@@ -2,6 +2,7 @@ import { StyleSheet, Text, View, Dimensions, Button, ScrollView } from 'react-na
 import React, { useState, useEffect } from 'react'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { LineChart } from "react-native-chart-kit";
+import {Polyline, Svg} from 'react-native-svg';
 import supabase from '../config/supabaseClient'
 
 const screenWidth = Dimensions.get("window").width;
@@ -95,7 +96,7 @@ function About() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-    <View style={styles.container}>
+
       <Text style={styles.title}>line chart</Text>
 
       {paceChartData && (
@@ -128,6 +129,15 @@ function About() {
         </View>
       )}
 
+      <Svg height="100" width="100">
+      <Polyline
+        points="2,2 4,2.5 6,4 8,12 12,14 20,18"
+        fill="none"
+        stroke="black"
+        strokeWidth="3"
+      />
+      </Svg>
+
       <Button
         title="Back Home"
         onPress={() => {
@@ -139,7 +149,7 @@ function About() {
           });
         }}
       />
-    </View>
+
     </ScrollView>
   );
 }
@@ -148,10 +158,10 @@ export default About;
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingTop: 40,
+    paddingBottom: 40,
     backgroundColor: '#d9d9d9',
   },
   title: {

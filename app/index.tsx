@@ -7,7 +7,8 @@ import { useLocation } from '../Hooks/location'
 import { 
   startBackgroundTracking, 
   stopBackgroundTracking,
-  clearTrackedUser 
+  clearTrackedUser,
+  finaliseRun 
 } from '../Hooks/backgroundLocation'
 import supabase from "../config/supabaseClient"
 import { Stopwatch } from './stopwatch'
@@ -26,6 +27,26 @@ export default function Home() {
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [resetKey, setResetKey] = useState(0);
+  const [offRoute, setOffRoute] = useState(false);
+
+  useEffect(() => {
+
+    if (!isRunning) {
+    setOffRoute(false);
+    return;
+  }
+
+  const interval = setInterval(async () => {
+    try {
+      const status = await AsyncStorage.getItem("off_route_status");
+      setOffRoute(status === "true");
+    } catch (e) {
+      console.log("Failed to read off_route_status:", e);
+    }
+  }, 2000);
+
+  return () => clearInterval(interval);
+}, [isRunning]);
 
   useEffect(() => {
   console.log("User id is:", id);
@@ -139,6 +160,12 @@ export default function Home() {
        <Stopwatch isRunning={isRunning} resetTrigger={resetKey} />
       </View>
 
+      {isRunning && offRoute && (
+  <View style={styles.offRouteOverlay}>
+    <Text style={styles.offRouteText}>You are off route</Text>
+  </View>
+)}
+
       {Platform.OS === "ios" && (
         <AppleMaps.View
           style={styles.map}
@@ -160,32 +187,17 @@ export default function Home() {
           <Button
           title="End run"
             onPress={async () => {
-              console.log("Run ended");
-              setResetKey(prev => prev + 1);
+            console.log("Run ended");
 
-              const before = await AsyncStorage.getItem("user_points_array");
-              console.log("HBefore deleting user_points_array: ", before);
+            await finaliseRun(); 
 
-              await AsyncStorage.multiRemove([
-                "user_points_array",
-                "start_run_location",
-                "active_route_cartesian"
-              ]);
+            setResetKey(prev => prev + 1);
+            setIsPaused(false);
+            setIsRunning(false);
 
-              setLoadedRoute([]);
-              setLoadedCartesian([]);
-
-              clearTrackedUser();
-              setIsPaused(false);
-
-              const afterUserPoints = await AsyncStorage.getItem("user_points_array");
-              const afterStartLocation = await AsyncStorage.getItem("start_run_location");
-              const keys = await AsyncStorage.getAllKeys();
-
-              console.log("After delete user_points_array:", afterUserPoints);
-              console.log("After delete start_run_location:", afterStartLocation);
-              console.log("Remaining AsyncStorage keys:", keys);
-            }}
+            // Navigate to summary screen (you’ll build this next)
+            router.push("/runSummary");
+          }}
           />
         </View>
   )}
@@ -214,6 +226,7 @@ export default function Home() {
                   JSON.stringify({
                     latitude: foregroundLocation.coords.latitude,
                     longitude: foregroundLocation.coords.longitude,
+                    altitude: foregroundLocation.coords.altitude ?? null,
                     timestamp: foregroundLocation.timestamp
                   })
                 );
@@ -223,6 +236,7 @@ export default function Home() {
             };
 
             await storeStartLocation();
+            await AsyncStorage.setItem("off_route_status", "false");
             await startBackgroundTracking();
           } catch (e) {
             console.log("Failed to start run:", e);
@@ -331,6 +345,23 @@ const styles = StyleSheet.create({
   borderRadius: 8,
   padding: 6,
   },
+  offRouteOverlay: {
+  position: "absolute",
+  top: 210,
+  alignSelf: "center",
+  zIndex: 20,
+  elevation: 20,
+  backgroundColor: "#e20000",
+  borderRadius: 8,
+  paddingVertical: 10,
+  paddingHorizontal: 16,
+},
+
+offRouteText: {
+  color: "#ffffff",
+  fontWeight: "700",
+  fontSize: 16,
+},
   display: {},
   startButton: {},
   stopButton: {},
