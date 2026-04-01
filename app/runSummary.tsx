@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Button, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
 import { clearTrackedUser } from "../Hooks/backgroundLocation";
+import { haversine } from "../Hooks/haversine";
+import supabase from "../config/supabaseClient";
+import { useRouter, useLocalSearchParams } from "expo-router";
 
 type TrackedPoint = {
   latitude: number;
@@ -29,10 +31,12 @@ type ElevationSummary = {
 
 export default function RunSummary() {
   const router = useRouter();
+  const { id } = useLocalSearchParams();
 
   const [points, setPoints] = useState<TrackedPoint[]>([]);
   const [splits, setSplits] = useState<Split[]>([]);
   const [elevation, setElevation] = useState<ElevationSummary | null>(null);
+  const [totalDistance, setTotalDistance] = useState(0);
 
   useEffect(() => {
     const loadRunData = async () => {
@@ -51,6 +55,25 @@ export default function RunSummary() {
         setSplits(parsedSplits);
         setElevation(parsedElevation);
 
+        let distance = 0;
+
+        for (let i = 1; i < parsedPoints.length; i++) {
+          const prev = parsedPoints[i - 1];
+          const curr = parsedPoints[i];
+
+          const segment = haversine(
+            prev.latitude,
+            prev.longitude,
+            curr.latitude,
+            curr.longitude
+          );
+
+          distance += segment;
+        }
+
+        setTotalDistance(distance);
+
+        console.log("[RUN SUMMARY] Total distance (km):", distance);
         console.log("[RUN SUMMARY] user_points_array:", parsedPoints);
         console.log("[RUN SUMMARY] run_splits:", parsedSplits);
         console.log("[RUN SUMMARY] run_elevation:", parsedElevation);
@@ -65,10 +88,88 @@ export default function RunSummary() {
   const handleConfirmRun = async () => {
     try {
       console.log("[RUN SUMMARY] Confirm Run pressed");
-
       console.log("[RUN SUMMARY] Final points:", points);
       console.log("[RUN SUMMARY] Final splits:", splits);
       console.log("[RUN SUMMARY] Final elevation:", elevation);
+
+      if (!id) {
+        console.log("[RUN SUMMARY] No user id found");
+        return;
+      }
+
+      if (points.length < 2) {
+        console.log("[RUN SUMMARY] Not enough points to save run");
+        return;
+      }
+
+      const startedAt = new Date(points[0].timestamp).toISOString();
+      const endedAt = new Date(points[points.length - 1].timestamp).toISOString();
+
+      const durationMs = points[points.length - 1].timestamp - points[0].timestamp;
+      const durationMinutes = durationMs / 1000 / 60;
+
+      const avgPaceKm =
+        totalDistance > 0 ? durationMinutes / totalDistance : null;
+
+      const { data: run, error: runError } = await supabase
+        .from("runs")
+        .insert({
+          user_id: id,
+          coordinates: points,
+          started_at: startedAt,
+          ended_at: endedAt,
+          avg_pace_km: avgPaceKm,
+          calories_kcal: null,
+        })
+        .select()
+        .single();
+
+      if (runError) {
+        console.log("[RUN SUMMARY] Error inserting run:", runError);
+        return;
+      }
+
+      console.log("[RUN SUMMARY] Run added to supabase:", run);
+
+      if (splits.length > 0) {
+        let cumulativeTimeSeconds = 0;
+
+        const splitRows = splits.map((s) => {
+          const splitTimeSeconds = s.durationMs / 1000;
+          cumulativeTimeSeconds += splitTimeSeconds;
+
+          const avgPacePerKm =
+            s.distanceKm > 0
+              ? (splitTimeSeconds / 60) / s.distanceKm
+              : null;
+
+          return {
+            run_id: run.id,
+            split_number: s.splitNumber,
+            split_distance_m: Math.round(s.distanceKm * 1000),
+            split_time_seconds: splitTimeSeconds,
+            cumulative_time_seconds: cumulativeTimeSeconds,
+            avg_pace_per_km: avgPacePerKm,
+            elevation_gain_m: Math.round(s.elevationGainM),
+            elevation_loss_m: Math.round(s.elevationLossM),
+            net_elevation_change_m: Math.round(s.netElevationChangeM),
+            elevation_at_split_m: s.elevationAtSplitM,
+          };
+        });
+
+        console.log("[RUN SUMMARY] Split rows being inserted:", splitRows);
+
+        const { error: splitsError } = await supabase
+          .from("run_splits")
+          .insert(splitRows);
+
+        if (splitsError) {
+          console.log("[RUN SUMMARY] Error inserting splits:", splitsError);
+          return;
+        }
+
+        console.log("[RUN SUMMARY] Splits added to supabase:", splitRows);
+      }
 
       await AsyncStorage.multiRemove([
         "user_points_array",
@@ -96,6 +197,7 @@ export default function RunSummary() {
       <View style={styles.card}>
         <Text style={styles.text}>Tracked points: {points.length}</Text>
         <Text style={styles.text}>Number of splits: {splits.length}</Text>
+        <Text style={styles.text}>Total distance: {totalDistance.toFixed(3)} km</Text>
         <Text style={styles.text}>
           Elevation gain: {elevation ? elevation.gain.toFixed(2) : "N/A"}
         </Text>

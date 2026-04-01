@@ -196,7 +196,10 @@ export default function Home() {
             setIsRunning(false);
 
             // Navigate to summary screen (you’ll build this next)
-            router.push("/runSummary");
+            router.push({
+              pathname: "/runSummary",
+              params: { id },
+            });
           }}
           />
         </View>
