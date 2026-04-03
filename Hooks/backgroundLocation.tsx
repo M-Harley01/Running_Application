@@ -35,6 +35,8 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   const locations = (data as BackgroundLocationTaskData | undefined)?.locations;
   if (!locations || locations.length === 0) return;
 
+  console.log("[BG-LOC] Batch size:", locations.length);
+
   const now = Date.now();
   if (now - lastLoggedAt < LOG_EVERY_MS) return;
   lastLoggedAt = now;
@@ -59,6 +61,12 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
       const value = await AsyncStorage.getItem("active_route_cartesian");
       if(value !== null){
         const routeXY: {x: number; y: number}[] = JSON.parse(value);
+
+        if (!Array.isArray(routeXY) || routeXY.length < 2) {
+          await AsyncStorage.setItem("off_route_status", "false");
+          return;
+        }
+
         const distance = dToLine(userLocationCartesian, routeXY);
         console.log("distance to closest line: ", distance);
 
@@ -141,7 +149,7 @@ export async function startBackgroundTracking(): Promise<void> {
   lastLoggedAt = 0;
 
   await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-    accuracy: Location.Accuracy.BestForNavigation,
+    accuracy: Location.Accuracy.Highest,
     timeInterval: 10_000, // aim for ~60s on Android
     distanceInterval: 0,  // set >0 if you want only when user moves
     foregroundService: {

@@ -160,7 +160,7 @@ export default function Home() {
        <Stopwatch isRunning={isRunning} resetTrigger={resetKey} />
       </View>
 
-      {isRunning && offRoute && (
+      {isRunning && loadedCartesian.length >= 2 && offRoute && (
   <View style={styles.offRouteOverlay}>
     <Text style={styles.offRouteText}>You are off route</Text>
   </View>
@@ -239,8 +239,20 @@ export default function Home() {
             };
 
             await storeStartLocation();
-            await AsyncStorage.setItem("off_route_status", "false");
-            await startBackgroundTracking();
+
+          if (loadedCartesian && loadedCartesian.length >= 2) {
+            await AsyncStorage.setItem(
+              "active_route_cartesian",
+              JSON.stringify(loadedCartesian)
+            );
+          } else {
+            await AsyncStorage.removeItem("active_route_cartesian");
+          }
+
+          // reset off-route status
+          await AsyncStorage.setItem("off_route_status", "false");
+
+          await startBackgroundTracking();
           } catch (e) {
             console.log("Failed to start run:", e);
           }
@@ -250,6 +262,8 @@ export default function Home() {
       <Button
         title="Stop Run"
         onPress={() => {
+          if(!isRunning) return;
+          
           stopBackgroundTracking();
           setIsRunning(false);
           setIsPaused(true);
