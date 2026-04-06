@@ -2,9 +2,8 @@ import { StyleSheet, Text, View, Dimensions, Button, ScrollView } from 'react-na
 import React, { useState, useEffect } from 'react'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { LineChart } from "react-native-chart-kit";
-import {Polyline, Svg} from 'react-native-svg';
+import { Polyline, Svg } from 'react-native-svg';
 import supabase from '../config/supabaseClient'
-import { apiCall } from '../Hooks/route'
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -12,40 +11,6 @@ type LatLng = {
   latitude: number;
   longitude: number;
 };
-
-function samplePoints<T>(points: T[], step: number): T[] {
-  return points.filter((_, index) => index % step === 0);
-}
-
-async function buildRefinedRoute(points: LatLng[]): Promise<LatLng[]> {
-  if (!Array.isArray(points) || points.length < 2) return [];
-
-  const fullRoute: LatLng[] = [];
-
-  for (let i = 0; i < points.length - 1; i++) {
-    const a = points[i];
-    const b = points[i + 1];
-
-    try {
-      const coords = await apiCall(a, b); // returns [lon, lat][]
-
-      const converted = coords.map(([lon, lat]: [number, number]) => ({
-        latitude: lat,
-        longitude: lon,
-      }));
-
-      if (i > 0) {
-        converted.shift();
-      }
-
-      fullRoute.push(...converted);
-    } catch (e) {
-      console.log(`Failed to fetch OSRM segment ${i} -> ${i + 1}:`, e);
-    }
-  }
-
-  return fullRoute;
-}
 
 function latLngsToSvgPoints(
   coords: LatLng[],
@@ -100,7 +65,7 @@ const chartConfig = {
 
 function About() {
   const router = useRouter();
-  const { runId, id  } = useLocalSearchParams();
+  const { runId, id } = useLocalSearchParams();
   const [paceChartData, setPaceChartData] = useState<any>(null);
   const [elevationChartData, setElevationChartData] = useState<any>(null);
   const [runPolylinePoints, setRunPolylinePoints] = useState<string>("");
@@ -133,7 +98,7 @@ function About() {
 
       const labels = data.map((item) => `${item.split_number} km`);
       const paceValues = data.map((item) => item.avg_pace_per_km);
-      const elevationValues = data.map((item => item.elevation_at_split_m ?? 0));
+      const elevationValues = data.map((item) => item.elevation_at_split_m ?? 0);
 
       const paceData = {
         labels,
@@ -151,84 +116,86 @@ function About() {
         labels,
         datasets: [
           {
-          data: elevationValues,
-          color: (opacity = 1) => `rgba(255, 165, 0, ${opacity})`,
-          strokeWidth: 2,
+            data: elevationValues,
+            color: (opacity = 1) => `rgba(255, 165, 0, ${opacity})`,
+            strokeWidth: 2,
           }
         ],
         legend: ["Elevation"]
       };
 
       setPaceChartData(paceData);
-      setElevationChartData(elevationData)
-    }else{
+      setElevationChartData(elevationData);
+    } else {
       setPaceChartData(null);
       setElevationChartData(null);
     }
   };
 
   useEffect(() => {
-  fetchSplits();
-  loadRunPolyline();
-}, [runId]);
+    if (!runId) return;
+
+    const init = async () => {
+      await fetchSplits();
+      await loadRunPolyline();
+    };
+
+    init();
+  }, [runId]);
 
   const fetchRunCoordinates = async () => {
-    if(!runId){
+    if (!runId) {
       console.log("no run id passed in the params");
-      return;
+      return null;
     }
 
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("runs")
       .select("coordinates")
       .eq("id", runId)
-      .single()
+      .single();
 
-    if(error){
+    if (error) {
       console.log("error fetching run coordinates", error.message, error);
-      return [];
+      return null;
     }
 
-    if (!data?.coordinates || !Array.isArray(data.coordinates)) {
-      console.log("No coordinates found");
-      return [];
-    }
-
-    return data.coordinates;
+    return data;
   };
 
   const loadRunPolyline = async () => {
-  const rawCoords = await fetchRunCoordinates();
+    const runData = await fetchRunCoordinates();
 
-  if (!Array.isArray(rawCoords) || rawCoords.length < 2) {
-    console.log("Not enough run coordinates");
-    return;
-  }
+    if (!runData) {
+      console.log("No run data found");
+      return;
+    }
 
-  const cleaned: LatLng[] = rawCoords.filter(
-    (p: any) =>
-      p &&
-      typeof p.latitude === "number" &&
-      typeof p.longitude === "number"
-  );
+    const sourceCoords = runData.coordinates;
 
-  if (cleaned.length < 2) {
-    console.log("Not enough valid coordinates after cleaning");
-    return;
-  }
+    if (!Array.isArray(sourceCoords) || sourceCoords.length < 2) {
+      console.log("Not enough run coordinates");
+      return;
+    }
 
-  const sampled = samplePoints(cleaned, 5);
-  const refined = await buildRefinedRoute(sampled);
+    const cleaned: LatLng[] = sourceCoords.filter(
+      (p: any) =>
+        p &&
+        typeof p.latitude === "number" &&
+        typeof p.longitude === "number"
+    );
 
-  const finalCoords = refined.length > 1 ? refined : cleaned;
+    if (cleaned.length < 2) {
+      console.log("Not enough valid coordinates after cleaning");
+      return;
+    }
 
-  const svgPoints = latLngsToSvgPoints(finalCoords, screenWidth - 32, 180);
-  setRunPolylinePoints(svgPoints);
-};
+    const svgPoints = latLngsToSvgPoints(cleaned, screenWidth - 32, 180);
+    setRunPolylinePoints(svgPoints);
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-
       <Text style={styles.title}>line chart</Text>
 
       {paceChartData && (
@@ -255,7 +222,7 @@ function About() {
             verticalLabelRotation={30}
             chartConfig={chartConfig}
             bezier
-             xLabelsOffset={-8}
+            xLabelsOffset={-8}
             style={styles.chart}
           />
         </View>
@@ -283,7 +250,6 @@ function About() {
           });
         }}
       />
-
     </ScrollView>
   );
 }
@@ -303,13 +269,13 @@ const styles = StyleSheet.create({
     fontSize: 28,
   },
   card: {
-  backgroundColor: '#f7f7f9',
-  borderRadius: 20,
-  marginHorizontal: 16,
-  marginTop: 20,
-  marginBottom: 20,
-  paddingVertical: 10,
-},
+    backgroundColor: '#f7f7f9',
+    borderRadius: 20,
+    marginHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 20,
+    paddingVertical: 10,
+  },
   chart: {
     borderRadius: 20,
   }

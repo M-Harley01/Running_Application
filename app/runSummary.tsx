@@ -5,12 +5,18 @@ import { clearTrackedUser } from "../Hooks/backgroundLocation";
 import { haversine } from "../Hooks/haversine";
 import supabase from "../config/supabaseClient";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { apiCall } from "../Hooks/route";
 
 type TrackedPoint = {
   latitude: number;
   longitude: number;
   timestamp: number;
   altitude?: number;
+};
+
+type LatLng = {
+  latitude: number;
+  longitude: number;
 };
 
 type Split = {
@@ -28,6 +34,40 @@ type ElevationSummary = {
   loss: number;
   net: number;
 };
+
+function samplePoints<T>(points: T[], step: number): T[] {
+  return points.filter((_, index) => index % step === 0);
+}
+
+async function buildRefinedRoute(points: LatLng[]): Promise<LatLng[]> {
+  if (!Array.isArray(points) || points.length < 2) return [];
+
+  const fullRoute: LatLng[] = [];
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+
+    try {
+      const coords = await apiCall(a, b);
+
+      const converted = coords.map(([lon, lat]: [number, number]) => ({
+        latitude: lat,
+        longitude: lon,
+      }));
+
+      if (i > 0) {
+        converted.shift();
+      }
+
+      fullRoute.push(...converted);
+    } catch (e) {
+      console.log(`[RUN SUMMARY] Failed to fetch OSRM segment ${i} -> ${i + 1}:`, e);
+    }
+  }
+
+  return fullRoute;
+}
 
 export default function RunSummary() {
   const router = useRouter();
@@ -111,11 +151,32 @@ export default function RunSummary() {
       const avgPaceKm =
         totalDistance > 0 ? durationMinutes / totalDistance : null;
 
+              const cleanedPoints: LatLng[] = points.filter(
+        (p) =>
+          p &&
+          typeof p.latitude === "number" &&
+          typeof p.longitude === "number"
+      );
+
+      let displayPolyline: LatLng[] = cleanedPoints;
+
+      if (cleanedPoints.length >= 2) {
+        const sampledPoints = samplePoints(cleanedPoints, 5);
+        const refinedPolyline = await buildRefinedRoute(sampledPoints);
+
+        if (refinedPolyline.length > 1) {
+          displayPolyline = refinedPolyline;
+        }
+      }
+
+      console.log("[RUN SUMMARY] Display polyline points:", displayPolyline.length);
+
       const { data: run, error: runError } = await supabase
         .from("runs")
         .insert({
           user_id: id,
           coordinates: points,
+          display_polyline: displayPolyline,
           started_at: startedAt,
           ended_at: endedAt,
           avg_pace_km: avgPaceKm,
@@ -184,7 +245,12 @@ export default function RunSummary() {
 
       console.log("[RUN SUMMARY] Cleared stored run data");
 
-      router.replace("/");
+      router.replace({
+        pathname: "/",
+        params: {
+          id: String(id ?? ""),
+        },
+      });
     } catch (e) {
       console.log("[RUN SUMMARY] Failed during confirm:", e);
     }

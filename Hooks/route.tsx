@@ -1,4 +1,4 @@
-type LatLng = { latitude: number; longitude: number}
+type LatLng = { latitude: number; longitude: number }
 
 export async function apiCall(a : LatLng, b: LatLng) {
 

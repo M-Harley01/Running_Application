@@ -1,5 +1,5 @@
 import { AppleMaps, GoogleMaps } from "expo-maps";
-import { StyleSheet, Text, View, Button, Platform } from 'react-native'
+import { StyleSheet, Text, View, Button, Platform, Pressable } from 'react-native'
 import React, { useEffect, useState } from "react"
 import { Link, useRouter, useLocalSearchParams } from 'expo-router'
 import * as Location from "expo-location";
@@ -263,7 +263,7 @@ export default function Home() {
         title="Stop Run"
         onPress={() => {
           if(!isRunning) return;
-          
+
           stopBackgroundTracking();
           setIsRunning(false);
           setIsPaused(true);
