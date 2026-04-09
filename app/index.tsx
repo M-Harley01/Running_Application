@@ -153,12 +153,19 @@ export default function Home() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}> Index page</Text>
-      <DropdownComponent id={id} loginLat={loginLat} loginLon={loginLon} />
 
-      <View style={styles.stopwatch}>
-       <Stopwatch isRunning={isRunning} resetTrigger={resetKey} />
-      </View>
+      <View style={styles.header}>
+    <Text style={styles.title}> Index page</Text>
+    <View style={styles.headerDropdown}>
+      <DropdownComponent id={id} loginLat={loginLat} loginLon={loginLon} />
+    </View>
+  </View>
+
+  <View style={styles.topCard}>
+    <View style={styles.stopwatch}>
+      <Stopwatch isRunning={isRunning} resetTrigger={resetKey} />
+    </View>
+  </View>
 
       {isRunning && loadedCartesian.length >= 2 && offRoute && (
   <View style={styles.offRouteOverlay}>
@@ -166,6 +173,7 @@ export default function Home() {
   </View>
 )}
 
+      <View style={styles.mapContainer}>
       {Platform.OS === "ios" && (
         <AppleMaps.View
           style={styles.map}
@@ -181,6 +189,7 @@ export default function Home() {
                 polylines={routePolyline}
               />
       )}
+      </View>
 
       {isPaused && (
         <View style={styles.endRunOverlay}>
@@ -207,82 +216,91 @@ export default function Home() {
 
       <View style={styles.controls}>
     
-      <Button
-        title="Start Run (Background Tracking)"
-        onPress={async () => {
-          setIsPaused(false);
-          try {
-            const foregroundLocation = await Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.High,
-            });
+      <Pressable
+  style={styles.controlButton}
+  onPress={async () => {
+    setIsPaused(false);
+    try {
+      const foregroundLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
 
-            setIsRunning(true);
+      setIsRunning(true);
 
-            const date = new Date(foregroundLocation.timestamp);
-            setStartRunLocation(foregroundLocation);
-            console.log("Starting foreground location:", foregroundLocation.coords.latitude, foregroundLocation.coords.longitude, date);
+      const date = new Date(foregroundLocation.timestamp);
+      setStartRunLocation(foregroundLocation);
+      console.log(
+        "Starting foreground location:",
+        foregroundLocation.coords.latitude,
+        foregroundLocation.coords.longitude,
+        date
+      );
 
-            const storeStartLocation = async () => {
-              try {
-                await AsyncStorage.setItem(
-                  "start_run_location",
-                  JSON.stringify({
-                    latitude: foregroundLocation.coords.latitude,
-                    longitude: foregroundLocation.coords.longitude,
-                    altitude: foregroundLocation.coords.altitude ?? null,
-                    timestamp: foregroundLocation.timestamp
-                  })
-                );
-              } catch (error) {
-                console.log("Failed to store start_run_location:", error);
-              }
-            };
+      const storeStartLocation = async () => {
+        try {
+          await AsyncStorage.setItem(
+            "start_run_location",
+            JSON.stringify({
+              latitude: foregroundLocation.coords.latitude,
+              longitude: foregroundLocation.coords.longitude,
+              altitude: foregroundLocation.coords.altitude ?? null,
+              timestamp: foregroundLocation.timestamp,
+            })
+          );
+        } catch (error) {
+          console.log("Failed to store start_run_location:", error);
+        }
+      };
 
-            await storeStartLocation();
+      await storeStartLocation();
 
-          if (loadedCartesian && loadedCartesian.length >= 2) {
-            await AsyncStorage.setItem(
-              "active_route_cartesian",
-              JSON.stringify(loadedCartesian)
-            );
-          } else {
-            await AsyncStorage.removeItem("active_route_cartesian");
-          }
+      if (loadedCartesian && loadedCartesian.length >= 2) {
+        await AsyncStorage.setItem(
+          "active_route_cartesian",
+          JSON.stringify(loadedCartesian)
+        );
+      } else {
+        await AsyncStorage.removeItem("active_route_cartesian");
+      }
 
-          // reset off-route status
-          await AsyncStorage.setItem("off_route_status", "false");
+      await AsyncStorage.setItem("off_route_status", "false");
+      await startBackgroundTracking();
+    } catch (e) {
+      console.log("Failed to start run:", e);
+    }
+  }}
+>
+  <Text style={styles.controlButtonText}>Start run</Text>
+</Pressable>
 
-          await startBackgroundTracking();
-          } catch (e) {
-            console.log("Failed to start run:", e);
-          }
-        }}
-      />
+<Pressable
+  style={styles.controlButton}
+  onPress={() => {
+    if (!isRunning) return;
 
-      <Button
-        title="Stop Run"
-        onPress={() => {
-          if(!isRunning) return;
+    stopBackgroundTracking();
+    setIsRunning(false);
+    setIsPaused(true);
+  }}
+>
+  <Text style={styles.controlButtonText}>Stop run</Text>
+</Pressable>
 
-          stopBackgroundTracking();
-          setIsRunning(false);
-          setIsPaused(true);
-        }}
-      />
+{loadedRoute.length > 0 && !isRunning && !isPaused && (
+  <Pressable
+    style={styles.controlButton}
+    onPress={async () => {
+      setLoadedRoute([]);
+      setLoadedCartesian([]);
 
-      {loadedRoute.length > 0 && !isRunning && !isPaused &&(
-        <Button
-          title="Clear Loaded Route"
-          onPress={async () => {
-            setLoadedRoute([]);
-            setLoadedCartesian([]);
+      await AsyncStorage.removeItem("active_route_cartesian");
 
-            await AsyncStorage.removeItem("active_route_cartesian");
-
-            console.log("Loaded route cleared");
-          }}
-        />
-      )}
+      console.log("Loaded route cleared");
+    }}
+  >
+    <Text style={styles.controlButtonText}>Clear route</Text>
+  </Pressable>
+)}
       </View>
         
     </View>
@@ -294,21 +312,14 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     backgroundColor: "#fff",
-    paddingBottom: 170,
+    paddingBottom: 110,
   },
 
   title: {
-    width: "100%",
-    backgroundColor: "#a9c4f5",
-    color: "#ffffff",
-    paddingTop: 48,
-    paddingBottom: 18,
-    paddingHorizontal: 18,
-    fontSize: 22,
-    fontWeight: "500",
-    borderBottomWidth: 1,
-    borderBottomColor: "#111",
-  },
+  color: "#ffffff",
+  fontSize: 22,
+  fontWeight: "500",
+},
 
   card: {
     backgroundColor: "#eee",
@@ -317,41 +328,34 @@ const styles = StyleSheet.create({
   },
 
   map: {
-    flex: 1,
     width: "100%",
+    height: "100%",
   },
 
   stopwatch: {
     width: "100%",
-    height: 150,
-    backgroundColor: "#ffffff",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#111",
-    overflow: "hidden",
+    justifyContent: "flex-start",
+    paddingTop: 16,
   },
 
   controls: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-
-    height: 170,
-    backgroundColor: "#a9c4f5",
-    borderTopWidth: 1,
-    borderTopColor: "#111",
-
-    justifyContent: "space-evenly",
-    paddingHorizontal: 18,
-    paddingTop: 10,
-    paddingBottom: 24,
-
-    zIndex: 10,
-    elevation: 10,
-  },
+  position: "absolute",
+  left: 0,
+  right: 0,
+  bottom: 0,
+  height: 110,
+  backgroundColor: "#a9c4f5",
+  borderTopWidth: 1,
+  borderTopColor: "#111",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-evenly",
+  paddingHorizontal: 16,
+  paddingBottom: 18,
+  zIndex: 10,
+  elevation: 10,
+},
   endRunOverlay: {
   position: "absolute",
   top: 20,
@@ -378,6 +382,59 @@ offRouteText: {
   color: "#ffffff",
   fontWeight: "700",
   fontSize: 16,
+},
+mapContainer: {
+  width: "92%",
+  height: 380,
+  marginTop: 12,
+  borderRadius: 24,
+  overflow: "hidden",
+  borderWidth: 1,
+  borderColor: "#d9d9d9",
+  backgroundColor: "#ddd",
+},
+topCard: {
+  width: "92%",
+  height: 140,
+  backgroundColor: "#ffffff",
+  marginTop: 16,
+  paddingHorizontal: 16,
+  borderRadius: 24,
+  borderWidth: 1,
+  borderColor: "#e5e5e5",
+  alignItems: "center",
+  justifyContent: "center",
+  overflow: "hidden",
+},
+controlButton: {
+  backgroundColor: "#ffffff",
+  borderRadius: 20,
+  minWidth: 100,
+  paddingVertical: 12,
+  paddingHorizontal: 18,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+controlButtonText: {
+  fontSize: 18,
+  color: "#111",
+  fontWeight: "500",
+},
+header: {
+  width: "92%",
+  marginTop: 18,
+  backgroundColor: "#a9c4f5",
+  borderRadius: 24,
+  paddingVertical: 18,
+  paddingHorizontal: 18,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+},
+
+headerDropdown: {
+  maxWidth: 180,
 },
   display: {},
   startButton: {},

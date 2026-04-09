@@ -97,6 +97,7 @@
       borderWidth: 0.5,
       borderRadius: 8,
       paddingHorizontal: 8,
+      backgroundColor: "#ffffff"
     },
     icon: {
       marginRight: 5,
