@@ -5,18 +5,27 @@
   import { Link, useRouter, useLocalSearchParams } from 'expo-router'
 
   type DropdownProps = {
-    id?: string | string[];
-    loginLat?: string | string[];
-    loginLon?: string | string[];
-  }
+  id?: string | string[];
+  loginLat?: string | string[];
+  loginLon?: string | string[];
+  fetchedCoord?: string | string[];
+  xyCoord?: string | string[];
+}
 
   const data = [
     { label: 'Plan a run', value: 'map' },
     { label: 'View previous runs', value: 'listRuns' },
     { label: 'Load route', value: 'loadRoute' },
+    { label: 'Training plan', value: 'trainingPlan'}
   ];
 
-  const DropdownComponent = ({ id, loginLat, loginLon }: DropdownProps) => {
+const DropdownComponent = ({
+  id,
+  loginLat,
+  loginLon,
+  fetchedCoord,
+  xyCoord,
+}: DropdownProps) => {
   const router = useRouter();
   const [value, setValue] = useState<string | null>(null);
   const [isFocus, setIsFocus] = useState(false);
@@ -49,6 +58,20 @@
       });
       return;
     }
+
+     if (selectedValue === 'trainingPlan') {
+    router.push({
+      pathname: '/trainingPlan',
+      params: { 
+        id: String(id),
+      ...(loginLat ? { loginLat: String(loginLat) } : {}),
+      ...(loginLon ? { loginLon: String(loginLon) } : {}),
+      ...(fetchedCoord ? { fetchedCoord: String(fetchedCoord) } : {}),
+      ...(xyCoord ? { xyCoord: String(xyCoord) } : {}),
+      },
+    });
+    return;
+  }
   };
 
   return (

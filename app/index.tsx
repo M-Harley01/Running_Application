@@ -157,7 +157,13 @@ export default function Home() {
       <View style={styles.header}>
     <Text style={styles.title}> Index page</Text>
     <View style={styles.headerDropdown}>
-      <DropdownComponent id={id} loginLat={loginLat} loginLon={loginLon} />
+     <DropdownComponent
+      id={id}
+      loginLat={loginLat}
+      loginLon={loginLon}
+      fetchedCoord={fetchedCoord}
+      xyCoord={xyCoord}
+    />
     </View>
   </View>
 
@@ -192,27 +198,28 @@ export default function Home() {
       </View>
 
       {isPaused && (
-        <View style={styles.endRunOverlay}>
-          <Button
-          title="End run"
-            onPress={async () => {
-            console.log("Run ended");
+  <View style={styles.endRunOverlay}>
+    <Pressable
+      style={styles.endRunButton}
+      onPress={async () => {
+        console.log("Run ended");
 
-            await finaliseRun(); 
+        await finaliseRun();
 
-            setResetKey(prev => prev + 1);
-            setIsPaused(false);
-            setIsRunning(false);
+        setResetKey(prev => prev + 1);
+        setIsPaused(false);
+        setIsRunning(false);
 
-            // Navigate to summary screen (you’ll build this next)
-            router.push({
-              pathname: "/runSummary",
-              params: { id },
-            });
-          }}
-          />
-        </View>
-  )}
+        router.push({
+          pathname: "/runSummary",
+          params: { id },
+        });
+      }}
+    >
+      <Text style={styles.endRunButtonText}>End run</Text>
+    </Pressable>
+  </View>
+)}
 
       <View style={styles.controls}>
     
@@ -341,19 +348,24 @@ const styles = StyleSheet.create({
 
   controls: {
   position: "absolute",
-  left: 0,
-  right: 0,
-  bottom: 0,
-  height: 110,
+  bottom: 20,
+  width: "92%",
+  alignSelf: "center",
   backgroundColor: "#a9c4f5",
-  borderTopWidth: 1,
-  borderTopColor: "#111",
+  borderRadius: 24,
   flexDirection: "row",
-  alignItems: "center",
   justifyContent: "space-evenly",
+  alignItems: "center",
+  paddingVertical: 16,
   paddingHorizontal: 16,
-  paddingBottom: 18,
-  zIndex: 10,
+
+  // shadow (iOS)
+  shadowColor: "#000",
+  shadowOpacity: 0.15,
+  shadowRadius: 8,
+  shadowOffset: { width: 0, height: 4 },
+
+  // shadow (Android)
   elevation: 10,
 },
   endRunOverlay: {
@@ -362,9 +374,6 @@ const styles = StyleSheet.create({
   alignSelf: "center",
   zIndex: 20,
   elevation: 20,
-  backgroundColor: "#ffffff",
-  borderRadius: 8,
-  padding: 6,
   },
   offRouteOverlay: {
   position: "absolute",
@@ -409,7 +418,7 @@ topCard: {
 controlButton: {
   backgroundColor: "#ffffff",
   borderRadius: 20,
-  minWidth: 100,
+  minWidth: 110,
   paddingVertical: 12,
   paddingHorizontal: 18,
   alignItems: "center",
@@ -435,6 +444,21 @@ header: {
 
 headerDropdown: {
   maxWidth: 180,
+},
+endRunButton: {
+  backgroundColor: "#ffffff",
+  borderRadius: 20,
+  minWidth: 120,
+  paddingVertical: 12,
+  paddingHorizontal: 18,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+endRunButtonText: {
+  fontSize: 18,
+  color: "#111",
+  fontWeight: "500",
 },
   display: {},
   startButton: {},
