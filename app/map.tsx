@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import supabase from '../config/supabaseClient';
 import { useLocation } from "../Hooks/location";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { haversine } from "../Hooks/haversine"
 
 type LatLng = { latitude: number; longitude: number };
 
@@ -40,6 +41,31 @@ export default function Map() {
       coordinates: routeCoords,
     },
   ];
+
+  const calculateRouteDistance = (coords: LatLng[]) => {
+  if (coords.length < 2) return 0;
+
+  let total = 0;
+
+  for (let i = 1; i < coords.length; i++) {
+      total += haversine(
+        coords[i - 1].latitude,
+        coords[i - 1].longitude,
+        coords[i].latitude,
+        coords[i].longitude
+      );
+    }
+
+    return total;
+  };
+
+  const routeDistanceKm = calculateRouteDistance(routeCoords);
+
+  const getInstruction = () => {
+    if (startSelected) return "Tap on the map to select a start point";
+    if (addPoint) return "Tap on the map to add a route point";
+    return "Select an option below to begin creating your route";
+  };
 
   const onFetchRoute = async (latLon: LatLng) => {
     if (!chosenRoute.current[0]) return;
@@ -126,6 +152,16 @@ export default function Map() {
           value={routeName}
           onChangeText={onChangeText}
         />
+      </View>
+
+      <View style={styles.distanceContainer}>
+        <Text style={styles.distanceText}>
+          Route distance: {routeDistanceKm.toFixed(2)} km
+        </Text>
+      </View>
+
+      <View style={styles.instructionContainer}>
+        <Text style={styles.instructionText}>{getInstruction()}</Text>
       </View>
 
       <View style={styles.mapContainer}>
@@ -306,4 +342,31 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#111",
   },
+  distanceContainer: {
+  width: "92%",
+  marginTop: 10,
+  paddingHorizontal: 4,
+},
+
+distanceText: {
+  fontSize: 16,
+  fontWeight: "500",
+  color: "#333",
+},
+instructionContainer: {
+  width: "92%",
+  marginTop: 10,
+  backgroundColor: "#fff",
+  borderRadius: 14,
+  paddingVertical: 10,
+  paddingHorizontal: 12,
+  borderWidth: 1,
+  borderColor: "#e0e0e0",
+},
+
+instructionText: {
+  fontSize: 14,
+  color: "#333",
+  textAlign: "center",
+},
 });
