@@ -1,127 +1,142 @@
 import { AppleMaps, GoogleMaps } from "expo-maps";
-import { StyleSheet, Text, View, Button, Platform, Pressable } from 'react-native'
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StyleSheet, Text, View, Platform, Pressable } from 'react-native'
 import React, { useEffect, useState } from "react"
-import { Link, useRouter, useLocalSearchParams } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as Location from "expo-location";
 import { useLocation } from '../Hooks/location'
 import { 
   startBackgroundTracking, 
   stopBackgroundTracking,
-  clearTrackedUser,
   finaliseRun 
 } from '../Hooks/backgroundLocation'
 import supabase from "../config/supabaseClient"
 import { Stopwatch } from './stopwatch'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import DropdownComponent from './dropDownTest'
+import { haversine } from '../Hooks/haversine'
 
 export default function Home() {
-  
+  const insets = useSafeAreaInsets();
   const { location } = useLocation();
   const { loginLat, loginLon, id, fetchedCoord, xyCoord } = useLocalSearchParams();
-  const [loadedRoute, setLoadedRoute] = useState<{latitude: number; longitude: number}[]>([]);
-  const [loadedCartesian, setLoadedCartesian ] = useState<{x: number; y: number}[]>([]);
-  const router = useRouter();   
+  const [loadedRoute, setLoadedRoute] = useState<{ latitude: number; longitude: number }[]>([]);
+  const [loadedCartesian, setLoadedCartesian] = useState<{ x: number; y: number }[]>([]);
+  const router = useRouter();
   const [checkedAuth, setCheckedAuth] = useState(false);
-  const [startRunLocation, setStartRunLocation] = useState<Location.LocationObject | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const [offRoute, setOffRoute] = useState(false);
+  const [distanceKm, setDistanceKm] = useState(0);
+
+  const [cameraPosition, setCameraPosition] = useState({
+    coordinates: {
+      latitude: 0,
+      longitude: 0,
+    },
+    zoom: 15,
+  });
 
   useEffect(() => {
-
     if (!isRunning) {
-    setOffRoute(false);
-    return;
-  }
-
-  const interval = setInterval(async () => {
-    try {
-      const status = await AsyncStorage.getItem("off_route_status");
-      setOffRoute(status === "true");
-    } catch (e) {
-      console.log("Failed to read off_route_status:", e);
+      setOffRoute(false);
+      return;
     }
-  }, 2000);
 
-  return () => clearInterval(interval);
-}, [isRunning]);
+    const interval = setInterval(async () => {
+      try {
+        const status = await AsyncStorage.getItem("off_route_status");
+        setOffRoute(status === "true");
+      } catch (e) {
+        console.log("Failed to read off_route_status:", e);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isRunning]);
 
   useEffect(() => {
-  console.log("User id is:", id);
-}, [id]);
-  
+    console.log("User id is:", id);
+  }, [id]);
+
   useEffect(() => {
-    if(!fetchedCoord) return
-    
-    try{
+    if (!fetchedCoord) return;
+
+    try {
       const parsed = JSON.parse(String(fetchedCoord));
 
       const cleaned = Array.isArray(parsed)
-      ? parsed.filter(
-        (p) =>
-          p && 
-        typeof p.latitude === "number" &&
-        typeof p.longitude === "number"
-      )
-      : [];
+        ? parsed.filter(
+            (p) =>
+              p &&
+              typeof p.latitude === "number" &&
+              typeof p.longitude === "number"
+          )
+        : [];
+
       setLoadedRoute(cleaned);
-    }
-    catch (e){
-      console.log("Failed to parse fetchedCoords: ", e)
+    } catch (e) {
+      console.log("Failed to parse fetchedCoords: ", e);
     }
   }, [fetchedCoord]);
 
   useEffect(() => {
-  if (!xyCoord) return;
+    if (!xyCoord) return;
 
-  try {
-    const parsed = JSON.parse(String(xyCoord));
+    try {
+      const parsed = JSON.parse(String(xyCoord));
 
-    const cleaned = Array.isArray(parsed)
-      ? parsed.filter(
-          (p) =>
-            p &&
-            typeof p.x === "number" &&
-            typeof p.y === "number"
-        )
-      : [];
+      const cleaned = Array.isArray(parsed)
+        ? parsed.filter(
+            (p) =>
+              p &&
+              typeof p.x === "number" &&
+              typeof p.y === "number"
+          )
+        : [];
 
-    setLoadedCartesian(cleaned);
+      setLoadedCartesian(cleaned);
 
-    const storeCartesian = async (routeXY: {x: number; y: number}[]) =>{
-        try{ 
-          await AsyncStorage.setItem("active_route_cartesian", JSON.stringify(routeXY)); 
-        }catch(e){
-          console.log("Failed to store active_route_cartesian: ", e)
+      const storeCartesian = async (routeXY: { x: number; y: number }[]) => {
+        try {
+          await AsyncStorage.setItem("active_route_cartesian", JSON.stringify(routeXY));
+        } catch (e) {
+          console.log("Failed to store active_route_cartesian: ", e);
         }
+      };
+
+      storeCartesian(cleaned);
+    } catch (e) {
+      console.log("Failed to parse xyCoord:", e);
     }
+  }, [xyCoord]);
 
-    storeCartesian(cleaned);
+  const currentLat = location?.coords.latitude;
+  const currentLon = location?.coords.longitude;
 
-  } catch (e) {
-    console.log("Failed to parse xyCoord:", e);
-  }
-}, [xyCoord]);
-  
-  const currentLat = location?.coords.latitude ?? 56.4697445;
-  const currentLon = location?.coords.longitude ?? -2.8583756;
+  useEffect(() => {
+    if (!location?.coords) return;
+    if (Platform.OS === "ios" && isRunning) return;
 
-  const cameraPosition = {
-    coordinates: { latitude: currentLat, longitude: currentLon },
-    zoom: 15,
-  };
-  
+    setCameraPosition({
+      coordinates: {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      },
+      zoom: 15,
+    });
+  }, [location, isRunning]);
+
   const routePolyline = [
     {
       id: "route",
       width: 6,
       color: "#e20000",
       geodesic: true,
-      coordinates: loadedRoute
-    }
-  ]
+      coordinates: loadedRoute,
+    },
+  ];
 
   useEffect(() => {
     let mounted = true;
@@ -148,170 +163,280 @@ export default function Home() {
     };
   }, [router]);
 
-  // Now it’s safe to early-return because all hooks already ran
+  useEffect(() => {
+    let subscription: Location.LocationSubscription | null = null;
+
+    const startIosFollow = async () => {
+      if (Platform.OS !== "ios") return;
+      if (!isRunning) return;
+
+      try {
+        subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 2000,
+            distanceInterval: 5,
+          },
+          (newLocation) => {
+            setCameraPosition({
+              coordinates: {
+                latitude: newLocation.coords.latitude,
+                longitude: newLocation.coords.longitude,
+              },
+              zoom: 15,
+            });
+          }
+        );
+      } catch (e) {
+        console.log("Failed to start iOS follow watcher:", e);
+      }
+    };
+
+    startIosFollow();
+
+    return () => {
+      subscription?.remove();
+    };
+  }, [isRunning]);
+
+  const updateLiveDistance = async () => {
+    try {
+      const storedPoints = await AsyncStorage.getItem("user_points_array");
+
+      if (!storedPoints) {
+        setDistanceKm(0);
+        return;
+      }
+
+      const parsed = JSON.parse(storedPoints);
+
+      const cleaned = Array.isArray(parsed)
+        ? parsed.filter(
+            (p) =>
+              p &&
+              typeof p.latitude === "number" &&
+              typeof p.longitude === "number"
+          )
+        : [];
+
+      if (cleaned.length < 2) {
+        setDistanceKm(0);
+        return;
+      }
+
+      let total = 0;
+
+      for (let i = 1; i < cleaned.length; i++) {
+        total += haversine(
+          cleaned[i - 1].latitude,
+          cleaned[i - 1].longitude,
+          cleaned[i].latitude,
+          cleaned[i].longitude
+        );
+      }
+
+      setDistanceKm(total);
+    } catch (e) {
+      console.log("Failed to update live distance:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (!isRunning) return;
+
+    const interval = setInterval(() => {
+      updateLiveDistance();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isRunning]);
+
   if (!checkedAuth) return null;
+
+  if (!location) {
+    return (
+      <View style={styles.container}>
+        <Text>Getting your location...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
+      <View style={[styles.header, { marginTop: insets.top + 8 }]}>
+        <Text style={styles.title}> Index page</Text>
+        <View style={styles.headerDropdown}>
+          <DropdownComponent
+            id={id}
+            loginLat={loginLat}
+            loginLon={loginLon}
+            fetchedCoord={fetchedCoord}
+            xyCoord={xyCoord}
+          />
+        </View>
+      </View>
 
-      <View style={styles.header}>
-    <Text style={styles.title}> Index page</Text>
-    <View style={styles.headerDropdown}>
-     <DropdownComponent
-      id={id}
-      loginLat={loginLat}
-      loginLon={loginLon}
-      fetchedCoord={fetchedCoord}
-      xyCoord={xyCoord}
-    />
-    </View>
-  </View>
+      <View style={styles.topCard}>
+        <View style={styles.stopwatch}>
+          <Stopwatch isRunning={isRunning} resetTrigger={resetKey} />
+        </View>
 
-  <View style={styles.topCard}>
-    <View style={styles.stopwatch}>
-      <Stopwatch isRunning={isRunning} resetTrigger={resetKey} />
-    </View>
-  </View>
+        <View style={styles.metricDivider} />
+
+        <View style={styles.distanceContainer}>
+          <Text style={styles.distanceText}>{distanceKm.toFixed(2)} km</Text>
+          <Text style={styles.distanceLabel}>Distance</Text>
+        </View>
+      </View>
 
       {isRunning && loadedCartesian.length >= 2 && offRoute && (
-  <View style={styles.offRouteOverlay}>
-    <Text style={styles.offRouteText}>You are off route</Text>
-  </View>
-)}
+        <View style={styles.offRouteOverlay}>
+          <Text style={styles.offRouteText}>You are off route</Text>
+        </View>
+      )}
 
       <View style={styles.mapContainer}>
-      {Platform.OS === "ios" && (
-        <AppleMaps.View
-          style={styles.map}
-          cameraPosition={cameraPosition}
-          polylines={routePolyline}
-        />
-      )}
+        {Platform.OS === "ios" && (
+          <AppleMaps.View
+            style={styles.map}
+            cameraPosition={cameraPosition}
+            polylines={routePolyline}
+            properties={{
+              isMyLocationEnabled: true,
+            }}
+          />
+        )}
 
-      {Platform.OS === "android" && (
-              <GoogleMaps.View
-                style={styles.map}
-                cameraPosition={cameraPosition}
-                polylines={routePolyline}
-              />
-      )}
+        {Platform.OS === "android" && (
+          <GoogleMaps.View
+            style={styles.map}
+            cameraPosition={cameraPosition}
+            polylines={routePolyline}
+            properties={{
+              isMyLocationEnabled: true,
+            }}
+            userLocation={{
+              coordinates: {
+                latitude: currentLat!,
+                longitude: currentLon!,
+              },
+              followUserLocation: true,
+            }}
+          />
+        )}
       </View>
 
       {isPaused && (
-  <View style={styles.endRunOverlay}>
-    <Pressable
-      style={styles.endRunButton}
-      onPress={async () => {
-        console.log("Run ended");
+        <View style={styles.endRunOverlay}>
+          <Pressable
+            style={styles.endRunButton}
+            onPress={async () => {
+              console.log("Run ended");
 
-        await finaliseRun();
+              await finaliseRun();
 
-        setResetKey(prev => prev + 1);
-        setIsPaused(false);
-        setIsRunning(false);
+              setResetKey((prev) => prev + 1);
+              setIsPaused(false);
+              setIsRunning(false);
 
-        router.push({
-          pathname: "/runSummary",
-          params: { id },
-        });
-      }}
-    >
-      <Text style={styles.endRunButtonText}>End run</Text>
-    </Pressable>
-  </View>
-)}
+              router.push({
+                pathname: "/runSummary",
+                params: { id },
+              });
+            }}
+          >
+            <Text style={styles.endRunButtonText}>End run</Text>
+          </Pressable>
+        </View>
+      )}
 
       <View style={styles.controls}>
-    
-      <Pressable
-  style={styles.controlButton}
-  onPress={async () => {
-    setIsPaused(false);
-    try {
-      const foregroundLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
+        <Pressable
+          style={styles.controlButton}
+          onPress={async () => {
+            setIsPaused(false);
+            try {
+              const foregroundLocation = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.High,
+              });
 
-      setIsRunning(true);
+              setIsRunning(true);
+              setDistanceKm(0);
 
-      const date = new Date(foregroundLocation.timestamp);
-      setStartRunLocation(foregroundLocation);
-      console.log(
-        "Starting foreground location:",
-        foregroundLocation.coords.latitude,
-        foregroundLocation.coords.longitude,
-        date
-      );
+              const date = new Date(foregroundLocation.timestamp);
+              console.log(
+                "Starting foreground location:",
+                foregroundLocation.coords.latitude,
+                foregroundLocation.coords.longitude,
+                date
+              );
 
-      const storeStartLocation = async () => {
-        try {
-          await AsyncStorage.setItem(
-            "start_run_location",
-            JSON.stringify({
-              latitude: foregroundLocation.coords.latitude,
-              longitude: foregroundLocation.coords.longitude,
-              altitude: foregroundLocation.coords.altitude ?? null,
-              timestamp: foregroundLocation.timestamp,
-            })
-          );
-        } catch (error) {
-          console.log("Failed to store start_run_location:", error);
-        }
-      };
+              const storeStartLocation = async () => {
+                try {
+                  await AsyncStorage.setItem(
+                    "start_run_location",
+                    JSON.stringify({
+                      latitude: foregroundLocation.coords.latitude,
+                      longitude: foregroundLocation.coords.longitude,
+                      altitude: foregroundLocation.coords.altitude ?? null,
+                      timestamp: foregroundLocation.timestamp,
+                    })
+                  );
+                } catch (error) {
+                  console.log("Failed to store start_run_location:", error);
+                }
+              };
 
-      await storeStartLocation();
+              await storeStartLocation();
 
-      if (loadedCartesian && loadedCartesian.length >= 2) {
-        await AsyncStorage.setItem(
-          "active_route_cartesian",
-          JSON.stringify(loadedCartesian)
-        );
-      } else {
-        await AsyncStorage.removeItem("active_route_cartesian");
-      }
+              if (loadedCartesian && loadedCartesian.length >= 2) {
+                await AsyncStorage.setItem(
+                  "active_route_cartesian",
+                  JSON.stringify(loadedCartesian)
+                );
+              } else {
+                await AsyncStorage.removeItem("active_route_cartesian");
+              }
 
-      await AsyncStorage.setItem("off_route_status", "false");
-      await startBackgroundTracking();
-    } catch (e) {
-      console.log("Failed to start run:", e);
-    }
-  }}
->
-  <Text style={styles.controlButtonText}>Start run</Text>
-</Pressable>
+              await AsyncStorage.setItem("off_route_status", "false");
+              await startBackgroundTracking();
+            } catch (e) {
+              console.log("Failed to start run:", e);
+            }
+          }}
+        >
+          <Text style={styles.controlButtonText}>Start run</Text>
+        </Pressable>
 
-<Pressable
-  style={styles.controlButton}
-  onPress={() => {
-    if (!isRunning) return;
+        <Pressable
+          style={styles.controlButton}
+          onPress={() => {
+            if (!isRunning) return;
 
-    stopBackgroundTracking();
-    setIsRunning(false);
-    setIsPaused(true);
-  }}
->
-  <Text style={styles.controlButtonText}>Stop run</Text>
-</Pressable>
+            stopBackgroundTracking();
+            setIsRunning(false);
+            setIsPaused(true);
+          }}
+        >
+          <Text style={styles.controlButtonText}>Stop run</Text>
+        </Pressable>
 
-{loadedRoute.length > 0 && !isRunning && !isPaused && (
-  <Pressable
-    style={styles.controlButton}
-    onPress={async () => {
-      setLoadedRoute([]);
-      setLoadedCartesian([]);
-
-      await AsyncStorage.removeItem("active_route_cartesian");
-
-      console.log("Loaded route cleared");
-    }}
-  >
-    <Text style={styles.controlButtonText}>Clear route</Text>
-  </Pressable>
-)}
+        {loadedRoute.length > 0 && !isRunning && !isPaused && (
+          <Pressable
+            style={styles.controlButton}
+            onPress={async () => {
+              setLoadedRoute([]);
+              setLoadedCartesian([]);
+              await AsyncStorage.removeItem("active_route_cartesian");
+              console.log("Loaded route cleared");
+            }}
+          >
+            <Text style={styles.controlButtonText}>Clear route</Text>
+          </Pressable>
+        )}
       </View>
-        
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -319,14 +444,15 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     backgroundColor: "#fff",
-    paddingBottom: 110,
+    paddingBottom: 24,
   },
 
   title: {
-  color: "#ffffff",
-  fontSize: 22,
-  fontWeight: "500",
-},
+    color: "#ffffff",
+    fontSize: 22,
+    fontWeight: "500",
+    flexShrink: 1,
+  },
 
   card: {
     backgroundColor: "#eee",
@@ -340,128 +466,152 @@ const styles = StyleSheet.create({
   },
 
   stopwatch: {
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "flex-start",
-    paddingTop: 16,
-  },
+  width: "100%",
+  alignItems: "center",
+  justifyContent: "center",
+},
 
   controls: {
-  position: "absolute",
-  bottom: 20,
-  width: "92%",
-  alignSelf: "center",
-  backgroundColor: "#a9c4f5",
-  borderRadius: 24,
-  flexDirection: "row",
-  justifyContent: "space-evenly",
-  alignItems: "center",
-  paddingVertical: 16,
-  paddingHorizontal: 16,
+    width: "92%",
+    alignSelf: "center",
+    backgroundColor: "#a9c4f5",
+    borderRadius: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    gap: 10,
+    marginTop: 16,
+    marginBottom: 20,
 
-  // shadow (iOS)
-  shadowColor: "#000",
-  shadowOpacity: 0.15,
-  shadowRadius: 8,
-  shadowOffset: { width: 0, height: 4 },
-
-  // shadow (Android)
-  elevation: 10,
-},
-  endRunOverlay: {
-  position: "absolute",
-  top: 20,
-  alignSelf: "center",
-  zIndex: 20,
-  elevation: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 10,
   },
-  offRouteOverlay: {
-  position: "absolute",
-  top: 210,
-  alignSelf: "center",
-  zIndex: 20,
-  elevation: 20,
-  backgroundColor: "#e20000",
-  borderRadius: 8,
-  paddingVertical: 10,
-  paddingHorizontal: 16,
-},
 
-offRouteText: {
-  color: "#ffffff",
-  fontWeight: "700",
-  fontSize: 16,
-},
-mapContainer: {
+  endRunOverlay: {
+    position: "absolute",
+    top: 20,
+    alignSelf: "center",
+    zIndex: 20,
+    elevation: 20,
+  },
+
+  offRouteOverlay: {
+    position: "absolute",
+    top: 210,
+    alignSelf: "center",
+    zIndex: 20,
+    elevation: 20,
+    backgroundColor: "#e20000",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+
+  offRouteText: {
+    color: "#ffffff",
+    fontWeight: "700",
+    fontSize: 16,
+  },
+
+  mapContainer: {
+    width: "92%",
+    height: 340,
+    marginTop: 12,
+    borderRadius: 24,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#d9d9d9",
+    backgroundColor: "#ddd",
+  },
+
+ topCard: {
   width: "92%",
-  height: 380,
-  marginTop: 12,
-  borderRadius: 24,
-  overflow: "hidden",
-  borderWidth: 1,
-  borderColor: "#d9d9d9",
-  backgroundColor: "#ddd",
-},
-topCard: {
-  width: "92%",
-  height: 140,
+  height: 175,
   backgroundColor: "#ffffff",
   marginTop: 16,
   paddingHorizontal: 16,
+  paddingVertical: 12,
   borderRadius: 24,
   borderWidth: 1,
   borderColor: "#e5e5e5",
   alignItems: "center",
   justifyContent: "center",
-  overflow: "hidden",
+  overflow: "hidden"
 },
-controlButton: {
-  backgroundColor: "#ffffff",
-  borderRadius: 20,
-  minWidth: 110,
-  paddingVertical: 12,
-  paddingHorizontal: 18,
+
+  controlButton: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  controlButtonText: {
+    fontSize: 18,
+    color: "#111",
+    fontWeight: "500",
+  },
+
+  header: {
+    width: "92%",
+    backgroundColor: "#a9c4f5",
+    borderRadius: 24,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  headerDropdown: {
+    maxWidth: 180,
+  },
+
+  endRunButton: {
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    minWidth: 120,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  endRunButtonText: {
+    fontSize: 18,
+    color: "#111",
+    fontWeight: "500",
+  },
+
+  distanceLabel: {
+  fontSize: 14,
+  color: "#666",
+  marginTop: 2,
+},
+distanceText: {
+  fontSize: 22,
+  fontWeight: "600",
+  color: "#111",
+  marginTop: 0,
+},
+  metricDivider: {
+  width: "90%",
+  height: 1,
+  backgroundColor: "#222",
+  marginTop: 8,
+  marginBottom: 8,
+},
+
+distanceContainer: {
   alignItems: "center",
   justifyContent: "center",
+  paddingBottom: 4,
 },
-
-controlButtonText: {
-  fontSize: 18,
-  color: "#111",
-  fontWeight: "500",
-},
-header: {
-  width: "92%",
-  marginTop: 18,
-  backgroundColor: "#a9c4f5",
-  borderRadius: 24,
-  paddingVertical: 18,
-  paddingHorizontal: 18,
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "space-between",
-},
-
-headerDropdown: {
-  maxWidth: 180,
-},
-endRunButton: {
-  backgroundColor: "#ffffff",
-  borderRadius: 20,
-  minWidth: 120,
-  paddingVertical: 12,
-  paddingHorizontal: 18,
-  alignItems: "center",
-  justifyContent: "center",
-},
-
-endRunButtonText: {
-  fontSize: 18,
-  color: "#111",
-  fontWeight: "500",
-},
-  display: {},
-  startButton: {},
-  stopButton: {},
-  resetButton: {},
 });

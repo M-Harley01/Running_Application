@@ -94,14 +94,6 @@ const DropdownComponent = ({
           setIsFocus(false);
           handleNavigation(item.value);
         }}
-        renderLeftIcon={() => (
-          <AntDesign
-            style={styles.icon}
-            color={isFocus ? 'blue' : 'black'}
-            name="down"
-            size={20}
-          />
-        )}
       />
     </View>
   );

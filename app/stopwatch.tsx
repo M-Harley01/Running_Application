@@ -56,15 +56,9 @@ export function Stopwatch({ isRunning, resetTrigger }: StopwatchProps) {
 const styles = StyleSheet.create({
 
   stopwatch: {
-    width: "100%",
-    height: 150,
-    backgroundColor: "#ffffff",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#111",
-    overflow: "hidden",
-  },
+  width: "100%",
+  alignItems: "center",
+  justifyContent: "center",
+},
 
 });

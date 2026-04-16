@@ -1,15 +1,29 @@
-import { StyleSheet, Text, View, Dimensions, Button, ScrollView } from 'react-native'
-import React, { useState, useEffect } from 'react'
-import { useRouter, useLocalSearchParams } from 'expo-router'
+import { StyleSheet, Text, View, Dimensions, Pressable, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LineChart } from "react-native-chart-kit";
 import { Polyline, Svg } from 'react-native-svg';
-import supabase from '../config/supabaseClient'
+import supabase from '../config/supabaseClient';
+import { haversine } from '../Hooks/haversine';
 
 const screenWidth = Dimensions.get("window").width;
 
 type LatLng = {
   latitude: number;
   longitude: number;
+};
+
+type SplitRow = {
+  split_number: number;
+  avg_pace_per_km: number;
+  elevation_at_split_m: number | null;
+};
+
+type RunData = {
+  coordinates: any;
+  started_at: string | null;
+  ended_at: string | null;
+  avg_pace_km: number | null;
 };
 
 function latLngsToSvgPoints(
@@ -54,21 +68,75 @@ const chartConfig = {
   strokeWidth: 2,
   barPercentage: 0.5,
   useShadowColorFromDataset: false,
+  decimalPlaces: 1,
   propsForBackgroundLines: {
     stroke: "#dbe7f3",
     strokeDasharray: "5,5",
   },
   propsForLabels: {
-    fill: "#8ec5eb",
+    fill: "#7a8798",
   },
 };
+
+function formatTwoDp(value: number | null | undefined) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "--";
+  return value.toFixed(2);
+}
+
+function formatDuration(startedAt: string | null, endedAt: string | null) {
+  if (!startedAt || !endedAt) return "--";
+
+  const startMs = new Date(startedAt).getTime();
+  const endMs = new Date(endedAt).getTime();
+
+  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs < startMs) {
+    return "--";
+  }
+
+  const totalSeconds = Math.floor((endMs - startMs) / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function calculateDistanceKm(coords: LatLng[]) {
+  if (!Array.isArray(coords) || coords.length < 2) return 0;
+
+  let total = 0;
+
+  for (let i = 1; i < coords.length; i++) {
+    const prev = coords[i - 1];
+    const curr = coords[i];
+
+    total += haversine(
+      prev.latitude,
+      prev.longitude,
+      curr.latitude,
+      curr.longitude
+    );
+  }
+
+  return total;
+}
 
 function About() {
   const router = useRouter();
   const { runId, id } = useLocalSearchParams();
+
   const [paceChartData, setPaceChartData] = useState<any>(null);
   const [elevationChartData, setElevationChartData] = useState<any>(null);
   const [runPolylinePoints, setRunPolylinePoints] = useState<string>("");
+  const [splits, setSplits] = useState<SplitRow[]>([]);
+
+  const [summaryDistance, setSummaryDistance] = useState("--");
+  const [summaryDuration, setSummaryDuration] = useState("--");
+  const [summaryPace, setSummaryPace] = useState("--");
 
   console.log("passed in run is: ", runId);
 
@@ -96,9 +164,16 @@ function About() {
     if (data && data.length > 0) {
       console.log("here is the data ", data);
 
-      const labels = data.map((item) => `${item.split_number} km`);
-      const paceValues = data.map((item) => item.avg_pace_per_km);
-      const elevationValues = data.map((item) => item.elevation_at_split_m ?? 0);
+      const typedData = data as SplitRow[];
+      setSplits(typedData);
+
+      const labels = typedData.map((item) => `${item.split_number} km`);
+      const paceValues = typedData.map((item) =>
+        Number(item.avg_pace_per_km.toFixed(2))
+      );
+      const elevationValues = typedData.map((item) =>
+        Number((item.elevation_at_split_m ?? 0).toFixed(2))
+      );
 
       const paceData = {
         labels,
@@ -106,7 +181,7 @@ function About() {
           {
             data: paceValues,
             color: (opacity = 1) => `rgba(135, 206, 235, ${opacity})`,
-            strokeWidth: 2
+            strokeWidth: 2,
           }
         ],
         legend: ["Pace"]
@@ -127,21 +202,31 @@ function About() {
       setPaceChartData(paceData);
       setElevationChartData(elevationData);
     } else {
+      setSplits([]);
       setPaceChartData(null);
       setElevationChartData(null);
     }
   };
 
-  useEffect(() => {
-    if (!runId) return;
+  const fetchRunData = async () => {
+    if (!runId) {
+      console.log("no run id passed in the params");
+      return null;
+    }
 
-    const init = async () => {
-      await fetchSplits();
-      await loadRunPolyline();
-    };
+    const { data, error } = await supabase
+      .from("runs")
+      .select("coordinates, started_at, ended_at, avg_pace_km")
+      .eq("id", runId)
+      .single();
 
-    init();
-  }, [runId]);
+    if (error) {
+      console.log("error fetching run data", error.message, error);
+      return null;
+    }
+
+    return data as RunData;
+  };
 
   const fetchRunCoordinates = async () => {
     if (!runId) {
@@ -190,57 +275,159 @@ function About() {
       return;
     }
 
-    const svgPoints = latLngsToSvgPoints(cleaned, screenWidth - 32, 180);
+    const svgPoints = latLngsToSvgPoints(cleaned, screenWidth - 56, 180);
     setRunPolylinePoints(svgPoints);
   };
 
+  const loadRunSummary = async () => {
+    const runData = await fetchRunData();
+
+    if (!runData) {
+      console.log("No run data found");
+      return;
+    }
+
+    const coordinateSource = Array.isArray(runData.coordinates)
+      ? runData.coordinates
+      : [];
+
+    const cleanedCoords: LatLng[] = coordinateSource.filter(
+      (p: any) =>
+        p &&
+        typeof p.latitude === "number" &&
+        typeof p.longitude === "number"
+    );
+
+    const totalDistanceKm = calculateDistanceKm(cleanedCoords);
+
+    setSummaryDistance(
+      cleanedCoords.length >= 2 ? `${formatTwoDp(totalDistanceKm)} km` : "--"
+    );
+
+    setSummaryDuration(formatDuration(runData.started_at, runData.ended_at));
+
+    setSummaryPace(
+      runData.avg_pace_km !== null && runData.avg_pace_km !== undefined
+        ? `${formatTwoDp(runData.avg_pace_km)}/km`
+        : "--"
+    );
+  };
+
+  useEffect(() => {
+    if (!runId) return;
+
+    const init = async () => {
+      await fetchSplits();
+      await loadRunSummary();
+      await loadRunPolyline();
+    };
+
+    init();
+  }, [runId]);
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>line chart</Text>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>History</Text>
+      </View>
+
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryBox}>
+          <Text style={styles.summaryValue}>{summaryDistance}</Text>
+          <Text style={styles.summaryLabel}>Distance</Text>
+        </View>
+
+        <View style={styles.summaryBox}>
+          <Text style={styles.summaryValue}>{summaryDuration}</Text>
+          <Text style={styles.summaryLabel}>Duration</Text>
+        </View>
+
+        <View style={[styles.summaryBox, styles.summaryBoxLast]}>
+          <Text style={styles.summaryValue}>{summaryPace}</Text>
+          <Text style={styles.summaryLabel}>Pace</Text>
+        </View>
+      </View>
 
       {paceChartData && (
-        <View style={styles.card}>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Pace</Text>
           <LineChart
             data={paceChartData}
-            width={screenWidth - 32}
+            width={screenWidth - 56}
             height={180}
-            verticalLabelRotation={30}
+            verticalLabelRotation={0}
             chartConfig={chartConfig}
             bezier
             xLabelsOffset={-8}
             style={styles.chart}
+            withInnerLines
+            withOuterLines={false}
+            fromZero={false}
           />
         </View>
       )}
 
       {elevationChartData && (
-        <View style={styles.card}>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Elevation</Text>
           <LineChart
             data={elevationChartData}
-            width={screenWidth - 32}
+            width={screenWidth - 56}
             height={180}
-            verticalLabelRotation={30}
+            verticalLabelRotation={0}
             chartConfig={chartConfig}
             bezier
             xLabelsOffset={-8}
             style={styles.chart}
+            withInnerLines
+            withOuterLines={false}
+            fromZero
           />
         </View>
       )}
 
-      <View style={styles.card}>
-        <Svg height="180" width={screenWidth - 32}>
-          <Polyline
-            points={runPolylinePoints}
-            fill="none"
-            stroke="black"
-            strokeWidth="3"
-          />
-        </Svg>
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Route</Text>
+        <View style={styles.routeBox}>
+          <Svg height="180" width={screenWidth - 56}>
+            <Polyline
+              points={runPolylinePoints}
+              fill="none"
+              stroke="#e67e22"
+              strokeWidth="3"
+            />
+          </Svg>
+        </View>
       </View>
 
-      <Button
-        title="Back Home"
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Splits</Text>
+
+        <View style={styles.tableHeader}>
+          <Text style={styles.tableHeaderText}>KM</Text>
+          <Text style={styles.tableHeaderText}>PACE</Text>
+          <Text style={styles.tableHeaderText}>ELEV</Text>
+        </View>
+
+        {splits.length > 0 ? (
+          splits.map((split) => (
+            <View key={split.split_number} style={styles.tableRow}>
+              <Text style={styles.tableCell}>{split.split_number} km</Text>
+              <Text style={styles.tableCell}>
+                {formatTwoDp(split.avg_pace_per_km)}/km
+              </Text>
+              <Text style={styles.tableCell}>
+                {formatTwoDp(split.elevation_at_split_m ?? 0)} m
+              </Text>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.emptyText}>No split data available</Text>
+        )}
+      </View>
+
+      <Pressable
+        style={styles.backButton}
         onPress={() => {
           router.replace({
             pathname: "/",
@@ -249,7 +436,9 @@ function About() {
             },
           });
         }}
-      />
+      >
+        <Text style={styles.backButtonText}>Back Home</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -258,25 +447,116 @@ export default About;
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingTop: 40,
+    paddingTop: 20,
     paddingBottom: 40,
+    paddingHorizontal: 16,
     backgroundColor: '#d9d9d9',
   },
-  title: {
-    fontWeight: 'bold',
-    fontSize: 28,
-  },
-  card: {
-    backgroundColor: '#f7f7f9',
+  header: {
+    backgroundColor: "#a9c4f5",
     borderRadius: 20,
-    marginHorizontal: 16,
-    marginTop: 20,
-    marginBottom: 20,
-    paddingVertical: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    marginBottom: 14,
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 28,
+    color: "#ffffff",
+    fontWeight: "700",
+  },
+  summaryRow: {
+    flexDirection: "row",
+    marginBottom: 14,
+    backgroundColor: "#f7f7f9",
+    borderRadius: 18,
+    overflow: "hidden",
+  },
+  summaryBox: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRightWidth: 1,
+    borderRightColor: "#d9d9d9",
+  },
+  summaryBoxLast: {
+    borderRightWidth: 0,
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#232634",
+    textAlign: "center",
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 4,
+  },
+  sectionCard: {
+    backgroundColor: "#f7f7f9",
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#555",
+    marginBottom: 8,
   },
   chart: {
+    borderRadius: 16,
+  },
+  routeBox: {
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "#ffffff",
+  },
+  tableHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#ddd",
+    marginBottom: 8,
+  },
+  tableHeaderText: {
+    flex: 1,
+    fontWeight: "700",
+    color: "#888",
+    fontSize: 14,
+  },
+  tableRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
+  tableCell: {
+    flex: 1,
+    fontSize: 15,
+    color: "#232634",
+  },
+  emptyText: {
+    fontSize: 15,
+    color: "#666",
+    marginTop: 8,
+  },
+  backButton: {
+    backgroundColor: "#a9c4f5",
     borderRadius: 20,
-  }
+    paddingVertical: 16,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  backButtonText: {
+    color: "#ffffff",
+    fontSize: 18,
+    fontWeight: "700",
+  },
 });
