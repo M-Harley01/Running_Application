@@ -171,6 +171,12 @@ export default function Map() {
             cameraPosition={cameraPosition}
             polylines={myPolyline}
             onMapClick={(e) => handleMapClick(e)}
+            properties={{
+              isMyLocationEnabled: true,
+              pointsOfInterest: {
+                including: [],
+              },
+            }}
           />
         ) : (
           <GoogleMaps.View
@@ -178,6 +184,21 @@ export default function Map() {
             cameraPosition={cameraPosition}
             polylines={myPolyline}
             onMapClick={(e) => handleMapClick(e)}
+            properties={{
+              isMyLocationEnabled: true,
+              mapStyleOptions: {
+                json: JSON.stringify([
+                  {
+                    featureType: "poi",
+                    stylers: [{ visibility: "off" }],
+                  },
+                  {
+                    featureType: "transit",
+                    stylers: [{ visibility: "off" }],
+                  },
+                ]),
+              },
+            }}
           />
         )}
       </View>
@@ -262,13 +283,13 @@ const styles = StyleSheet.create({
     width: "100%",
     backgroundColor: "#f6f6f8",
     alignItems: "center",
-    paddingTop: 20,
-    paddingBottom: 24,
+    paddingTop: 12,
+    paddingBottom: 12,
   },
 
   header: {
     width: "92%",
-    marginTop: 18,
+    marginTop: 10,
     backgroundColor: "#a9c4f5",
     borderRadius: 24,
     paddingVertical: 18,
@@ -298,7 +319,7 @@ const styles = StyleSheet.create({
 
   mapContainer: {
     width: "92%",
-    height: 420,
+    height: 340,
     marginTop: 12,
     borderRadius: 24,
     overflow: "hidden",
@@ -313,7 +334,7 @@ const styles = StyleSheet.create({
 
   controls: {
     width: "92%",
-    marginTop: 16,
+    marginTop: 12,
     backgroundColor: "#a9c4f5",
     borderRadius: 24,
     flexDirection: "row",

@@ -303,6 +303,9 @@ export default function Home() {
             polylines={routePolyline}
             properties={{
               isMyLocationEnabled: true,
+              pointsOfInterest: {
+                including: [],
+              },
             }}
           />
         )}
@@ -314,6 +317,18 @@ export default function Home() {
             polylines={routePolyline}
             properties={{
               isMyLocationEnabled: true,
+              mapStyleOptions: {
+                json: JSON.stringify([
+                  {
+                    featureType: "poi",
+                    stylers: [{ visibility: "off" }],
+                  },
+                  {
+                    featureType: "transit",
+                    stylers: [{ visibility: "off" }],
+                  },
+                ]),
+              },
             }}
             userLocation={{
               coordinates: {
