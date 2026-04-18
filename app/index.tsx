@@ -1,7 +1,7 @@
 import { AppleMaps, GoogleMaps } from "expo-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet, Text, View, Platform, Pressable } from 'react-native'
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef ,useState } from "react"
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import * as Location from "expo-location";
 import { useLocation } from '../Hooks/location'
@@ -15,6 +15,7 @@ import { Stopwatch } from './stopwatch'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import DropdownComponent from './dropDownTest'
 import { haversine } from '../Hooks/haversine'
+import { useTrackedRunMapFollow } from '../Hooks/useTrackedRunMapFollow';
 
 export default function Home() {
   const insets = useSafeAreaInsets();
@@ -29,6 +30,8 @@ export default function Home() {
   const [resetKey, setResetKey] = useState(0);
   const [offRoute, setOffRoute] = useState(false);
   const [distanceKm, setDistanceKm] = useState(0);
+  const googleMapRef = useRef<any>(null);
+  const appleMapRef = useRef<any>(null);
 
   const [cameraPosition, setCameraPosition] = useState({
     coordinates: {
@@ -112,9 +115,6 @@ export default function Home() {
     }
   }, [xyCoord]);
 
-  const currentLat = location?.coords.latitude;
-  const currentLon = location?.coords.longitude;
-
   useEffect(() => {
     if (!location?.coords) return;
     if (Platform.OS === "ios" && isRunning) return;
@@ -127,6 +127,14 @@ export default function Home() {
       zoom: 15,
     });
   }, [location, isRunning]);
+
+  useTrackedRunMapFollow({
+  isRunning,
+  googleMapRef,
+  appleMapRef,
+  intervalMs: 2000,
+  zoom: 15,
+});
 
   const routePolyline = [
     {
@@ -163,45 +171,10 @@ export default function Home() {
     };
   }, [router]);
 
-  useEffect(() => {
-    let subscription: Location.LocationSubscription | null = null;
-
-    const startIosFollow = async () => {
-      if (Platform.OS !== "ios") return;
-      if (!isRunning) return;
-
-      try {
-        subscription = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.Balanced,
-            timeInterval: 2000,
-            distanceInterval: 5,
-          },
-          (newLocation) => {
-            setCameraPosition({
-              coordinates: {
-                latitude: newLocation.coords.latitude,
-                longitude: newLocation.coords.longitude,
-              },
-              zoom: 15,
-            });
-          }
-        );
-      } catch (e) {
-        console.log("Failed to start iOS follow watcher:", e);
-      }
-    };
-
-    startIosFollow();
-
-    return () => {
-      subscription?.remove();
-    };
-  }, [isRunning]);
-
   const updateLiveDistance = async () => {
     try {
       const storedPoints = await AsyncStorage.getItem("user_points_array");
+      console.log("storedPoints raw:", storedPoints);
 
       if (!storedPoints) {
         setDistanceKm(0);
@@ -236,6 +209,7 @@ export default function Home() {
       }
 
       setDistanceKm(total);
+      console.log("distance source:", storedPoints);
     } catch (e) {
       console.log("Failed to update live distance:", e);
     }
@@ -252,6 +226,11 @@ export default function Home() {
   }, [isRunning]);
 
   if (!checkedAuth) return null;
+
+  const distanceDisplay =
+  distanceKm < 1
+    ? `${Math.round(distanceKm * 1000)} m`
+    : `${distanceKm.toFixed(2)} km`;
 
   if (!location) {
     return (
@@ -284,7 +263,7 @@ export default function Home() {
         <View style={styles.metricDivider} />
 
         <View style={styles.distanceContainer}>
-          <Text style={styles.distanceText}>{distanceKm.toFixed(2)} km</Text>
+          <Text style={styles.distanceText}>{distanceDisplay}</Text>
           <Text style={styles.distanceLabel}>Distance</Text>
         </View>
       </View>
@@ -298,6 +277,7 @@ export default function Home() {
       <View style={styles.mapContainer}>
         {Platform.OS === "ios" && (
           <AppleMaps.View
+            ref={appleMapRef}
             style={styles.map}
             cameraPosition={cameraPosition}
             polylines={routePolyline}
@@ -312,6 +292,7 @@ export default function Home() {
 
         {Platform.OS === "android" && (
           <GoogleMaps.View
+            ref={googleMapRef}
             style={styles.map}
             cameraPosition={cameraPosition}
             polylines={routePolyline}
@@ -329,13 +310,6 @@ export default function Home() {
                   },
                 ]),
               },
-            }}
-            userLocation={{
-              coordinates: {
-                latitude: currentLat!,
-                longitude: currentLon!,
-              },
-              followUserLocation: true,
             }}
           />
         )}
@@ -369,6 +343,8 @@ export default function Home() {
         <Pressable
           style={styles.controlButton}
           onPress={async () => {
+            if (isRunning) return;
+
             setIsPaused(false);
             try {
               const foregroundLocation = await Location.getCurrentPositionAsync({

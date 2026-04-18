@@ -54,6 +54,12 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
     altitude: altitude?? 0
   };
   trackedUser.push(userPoint);
+
+  try {
+    await AsyncStorage.setItem("user_points_array", JSON.stringify(trackedUser));
+  }catch(e){
+    console.log("Failed to store user_points_array during run: ", e);
+  }
   
   const getCartesian = async () => {
     try{
@@ -116,42 +122,55 @@ export async function ensureBackgroundLocationPermissions(): Promise<boolean> {
 
 //Starts background location updates (keeps working when screen is locked / app in background).
 export async function startBackgroundTracking(): Promise<void> {
+  const alreadyStarted = await Location.hasStartedLocationUpdatesAsync(
+    LOCATION_TASK_NAME
+  );
+
+  if (alreadyStarted) {
+    console.log("[BG-LOC] Already started, stopping old tracking first");
+    await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+  }
+
+  trackedUser = [];
+  lastLoggedAt = 0;
+  lastStatus = null;
+
+  await AsyncStorage.removeItem("user_points_array");
+  await AsyncStorage.setItem("off_route_status", "false");
 
   const getStart = async () => {
-    try{
+    try {
       const value = await AsyncStorage.getItem("start_run_location");
-      if(value !== null){
+      if (value !== null) {
         const userStart: TrackedPoint = JSON.parse(value);
         trackedUser.push(userStart);
-        console.log("here is the start in the background: ", 
-          trackedUser[0].latitude, 
-          trackedUser[0].longitude, 
+
+        await AsyncStorage.setItem(
+          "user_points_array",
+          JSON.stringify(trackedUser)
+        );
+
+        console.log(
+          "here is the start in the background: ",
+          trackedUser[0].latitude,
+          trackedUser[0].longitude,
           trackedUser[0].timestamp
         );
       }
-    }catch(e){
-      console.log("Failed to load active_route_cartesian: ", e);
+    } catch (e) {
+      console.log("Failed to load start_run_location: ", e);
     }
-  }
+  };
+
   await getStart();
 
   const ok = await ensureBackgroundLocationPermissions();
   if (!ok) return;
 
-  const alreadyStarted = await Location.hasStartedLocationUpdatesAsync(
-    LOCATION_TASK_NAME
-  );
-  if (alreadyStarted) {
-    console.log("[BG-LOC] Already started");
-    return;
-  }
-
-  lastLoggedAt = 0;
-
   await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
     accuracy: Location.Accuracy.Highest,
-    timeInterval: 10_000, // aim for ~60s on Android
-    distanceInterval: 0,  // set >0 if you want only when user moves
+    timeInterval: 10_000,
+    distanceInterval: 0,
     foregroundService: {
       notificationTitle: "Run tracking active",
       notificationBody: "Your location is being recorded in the background.",
