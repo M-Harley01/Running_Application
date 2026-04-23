@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Button, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { clearTrackedUser } from "../Hooks/backgroundLocation";
 import { haversine } from "../Hooks/haversine";
@@ -77,6 +77,7 @@ export default function RunSummary() {
   const [splits, setSplits] = useState<Split[]>([]);
   const [elevation, setElevation] = useState<ElevationSummary | null>(null);
   const [totalDistance, setTotalDistance] = useState(0);
+  const [savingRun, setSavingRun] = useState(false);
 
   useEffect(() => {
     const loadRunData = async () => {
@@ -126,7 +127,11 @@ export default function RunSummary() {
   }, []);
 
   const handleConfirmRun = async () => {
+    if (savingRun) return;
+
     try {
+      setSavingRun(true);
+
       console.log("[RUN SUMMARY] Confirm Run pressed");
       console.log("[RUN SUMMARY] Final points:", points);
       console.log("[RUN SUMMARY] Final splits:", splits);
@@ -134,11 +139,13 @@ export default function RunSummary() {
 
       if (!id) {
         console.log("[RUN SUMMARY] No user id found");
+        Alert.alert("Error", "No user ID found.");
         return;
       }
 
       if (points.length < 2) {
         console.log("[RUN SUMMARY] Not enough points to save run");
+        Alert.alert("Error", "Not enough run data to save.");
         return;
       }
 
@@ -148,10 +155,9 @@ export default function RunSummary() {
       const durationMs = points[points.length - 1].timestamp - points[0].timestamp;
       const durationMinutes = durationMs / 1000 / 60;
 
-      const avgPaceKm =
-        totalDistance > 0 ? durationMinutes / totalDistance : null;
+      const avgPaceKm = totalDistance > 0 ? durationMinutes / totalDistance : null;
 
-              const cleanedPoints: LatLng[] = points.filter(
+      const cleanedPoints: LatLng[] = points.filter(
         (p) =>
           p &&
           typeof p.latitude === "number" &&
@@ -187,6 +193,7 @@ export default function RunSummary() {
 
       if (runError) {
         console.log("[RUN SUMMARY] Error inserting run:", runError);
+        Alert.alert("Error", "Failed to save run. Please try again.");
         return;
       }
 
@@ -226,6 +233,7 @@ export default function RunSummary() {
 
         if (splitsError) {
           console.log("[RUN SUMMARY] Error inserting splits:", splitsError);
+          Alert.alert("Error", "Run was saved, but splits failed to save.");
           return;
         }
 
@@ -245,14 +253,23 @@ export default function RunSummary() {
 
       console.log("[RUN SUMMARY] Cleared stored run data");
 
-      router.replace({
-        pathname: "/",
-        params: {
-          id: String(id ?? ""),
+      Alert.alert("Run saved", "Your run was saved successfully.", [
+        {
+          text: "OK",
+          onPress: () =>
+            router.replace({
+              pathname: "/",
+              params: {
+                id: String(id ?? ""),
+              },
+            }),
         },
-      });
+      ]);
     } catch (e) {
       console.log("[RUN SUMMARY] Failed during confirm:", e);
+      Alert.alert("Error", "Something went wrong while saving the run.");
+    } finally {
+      setSavingRun(false);
     }
   };
 
@@ -275,7 +292,15 @@ export default function RunSummary() {
         </Text>
       </View>
 
-      <Button title="Confirm Run" onPress={handleConfirmRun} />
+      <Pressable
+        style={[styles.confirmButton, savingRun && styles.confirmButtonDisabled]}
+        onPress={handleConfirmRun}
+        disabled={savingRun}
+      >
+        <Text style={styles.confirmButtonText}>
+          {savingRun ? "Saving..." : "Confirm Run"}
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -302,5 +327,20 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 16,
     marginBottom: 10,
+  },
+  confirmButton: {
+    backgroundColor: "#a9c4f5",
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmButtonDisabled: {
+    opacity: 0.6,
+  },
+  confirmButtonText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111",
   },
 });

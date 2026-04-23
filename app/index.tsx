@@ -389,6 +389,12 @@ export default function Home() {
                 await AsyncStorage.removeItem("active_route_cartesian");
               }
 
+              console.log("[START] loadedCartesian length:", loadedCartesian.length);
+              console.log("[START] loadedCartesian first point:", loadedCartesian[0]);
+
+              const routeCheck = await AsyncStorage.getItem("active_route_cartesian");
+              console.log("[START] active_route_cartesian after save:", routeCheck);
+
               await AsyncStorage.setItem("off_route_status", "false");
               await startBackgroundTracking();
             } catch (e) {
@@ -422,7 +428,7 @@ export default function Home() {
               console.log("Loaded route cleared");
             }}
           >
-            <Text style={styles.controlButtonText}>Clear route</Text>
+            <Text style={styles.controlButtonText}>Clear</Text>
           </Pressable>
         )}
       </View>
@@ -482,13 +488,13 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
 
-  endRunOverlay: {
-    position: "absolute",
-    top: 20,
-    alignSelf: "center",
-    zIndex: 20,
-    elevation: 20,
-  },
+ endRunOverlay: {
+  position: "absolute",
+  bottom: 120,
+  alignSelf: "center",
+  zIndex: 20,
+  elevation: 20,
+},
 
   offRouteOverlay: {
     position: "absolute",

@@ -62,11 +62,14 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   }
   
   const getCartesian = async () => {
-    try{
+    try {
       const OFF_ROUTE_THRESHOLD = 0.03;
       const value = await AsyncStorage.getItem("active_route_cartesian");
-      if(value !== null){
-        const routeXY: {x: number; y: number}[] = JSON.parse(value);
+
+      console.log("[BG] active_route_cartesian raw:", value);
+
+      if (value !== null) {
+        const routeXY: { x: number; y: number }[] = JSON.parse(value);
 
         if (!Array.isArray(routeXY) || routeXY.length < 2) {
           await AsyncStorage.setItem("off_route_status", "false");
@@ -74,7 +77,9 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
         }
 
         const distance = dToLine(userLocationCartesian, routeXY);
-        console.log("distance to closest line: ", distance);
+        console.log("[BG] userLocationCartesian:", userLocationCartesian);
+        console.log("[BG] route first point:", routeXY[0]);
+        console.log("[BG] distance to closest line:", distance);
 
         if (distance > OFF_ROUTE_THRESHOLD) {
           if (lastStatus !== "true") {
@@ -87,12 +92,14 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
             lastStatus = "false";
           }
         }
+      } else {
+        console.log("[BG] No active_route_cartesian found");
       }
-    }catch(e){
+    } catch (e) {
       console.log("Failed to load active_route_cartesian: ", e);
     }
-  }
-  getCartesian();
+  };
+  await getCartesian();
  
   console.log(
     `[BG-LOC] ${new Date(now).toISOString()} lat=${latitude} lon=${longitude} acc=${accuracy}`

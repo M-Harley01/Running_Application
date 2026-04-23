@@ -1,5 +1,5 @@
 import { AppleMaps, GoogleMaps } from "expo-maps";
-import { Platform, View, StyleSheet, TextInput, Text, Pressable } from "react-native";
+import { Platform, View, StyleSheet, TextInput, Text, Pressable, Alert } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { apiCall } from "../Hooks/route";
 import { useRef, useState } from "react";
@@ -29,6 +29,7 @@ export default function Map() {
   const [startSelected, setStartSelected] = useState(false);
   const [startCoord, setStartCoord] = useState(false);
   const [addPoint, setAddPoint] = useState(false);
+  const [savingRoute, setSavingRoute] = useState(false);
 
   const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
 
@@ -129,13 +130,39 @@ export default function Map() {
   };
 
   const createRoute = async () => {
-    if (!id || routeCoords.length < 2) return;
+    if (!id || routeCoords.length < 2 || routeName.trim() === "" || savingRoute) return;
 
-    await supabase.from("routes").insert({
-      user_id: id,
-      coordinates: routeCoords,
-      name: routeName,
-    });
+    try{
+      setSavingRoute(true);
+      
+      const { error} = await supabase.from("routes").insert({
+        user_id: id,
+        coordinates: routeCoords,
+        name: routeName,
+      });
+
+      if (error){
+        console.log("Failed to create route: ", error);
+        Alert.alert("Error", "failed to save route. Please try again.");
+        return;
+      }
+
+      Alert.alert("Route created", "Your route was successfully saved. ", [
+        {
+          text: "OK",
+          onPress: () =>
+            router.replace({
+              pathname: "/", 
+              params: {id: String(id ?? "") },
+            }),
+        },
+      ]);
+    }catch(e){
+      console.log("Unexpected error creating route: ", e);
+      Alert.alert("Error", "Something went wrong while saving the route");
+    }finally{
+      setSavingRoute(false);
+    }
   };
 
   return (
@@ -244,15 +271,22 @@ export default function Map() {
         </View>
 
         {routeCoords.length > 1 && routeName.trim() !== "" && (
-          <View style={styles.controlSlot}>
-            <Pressable style={styles.controlButton} onPress={createRoute}>
-              <Text style={styles.controlButtonText}>Create route</Text>
-            </Pressable>
-          </View>
-        )}
-
+        <View style={styles.controlSlot}>
+          <Pressable
+            style={[
+              styles.controlButton,
+              savingRoute && styles.controlButtonDisabled,
+            ]}
+            onPress={createRoute}
+            disabled={savingRoute}
+          >
+            <Text style={styles.controlButtonText}>
+              {savingRoute ? "Saving..." : "Create route"}
+            </Text>
+          </Pressable>
+        </View>
+      )}
       </View>
-
     </View>
   );
 
@@ -389,5 +423,8 @@ instructionText: {
   fontSize: 14,
   color: "#333",
   textAlign: "center",
+},
+controlButtonDisabled: {
+  opacity: 0.6,
 },
 });

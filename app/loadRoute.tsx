@@ -125,18 +125,17 @@ const formatDistance = (
               const coords = item.coordinates;
               const tempCartesian: { x: number; y: number }[] = [];
 
-              for (let i = 0; i < coords.length - 1; i++) {
-                const p1 = coords[i];
-                const p2 = coords[i + 1];
+              for (let i = 0; i < coords.length; i++) {
+                const p = coords[i];
 
-                const segment = routeToCartesian(
-                  p1.latitude,
-                  p1.longitude,
-                  p2.latitude,
-                  p2.longitude
+                tempCartesian.push(
+                  routeToCartesian(
+                    p.latitude,
+                    p.longitude,
+                    p.latitude,
+                    p.longitude
+                  )[0]
                 );
-
-                tempCartesian.push(...segment);
               }
 
               router.replace({
